@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..prompts import SYSTEM_PROMPT, build_messages
 from .review_sheet import REVIEW_SHEET, apply_review
 
 QA_DIR = Path("data/QA_data")
@@ -32,14 +33,6 @@ NUTRIENTS = Path("data/processed/food_nutrients.csv")
 
 SEED = 42
 SPLIT_FRACTIONS = {"train": 0.75, "val": 0.1, "test": 0.15}
-
-SYSTEM_PROMPT = (
-    "You are NutriAssist-RW, a nutrition assistant for parents and caregivers of young children in Rwanda. "
-    "Give practical, safe advice on breastfeeding, feeding children from 6 months to 5 years, and nutrition "
-    "for pregnant and breastfeeding mothers, using local foods. Reply in the language of the question "
-    "(English or Kinyarwanda). You do not diagnose illness or recommend medicines or doses; when there are "
-    "danger signs, tell the caregiver to go to the health centre."
-)
 
 NUTRIENT_LABELS = {
     "caloric_value": ("energy", "ingufu", "kcal", 0),
@@ -217,13 +210,7 @@ def assign_splits(records: list[dict], seed: int = SEED) -> dict[str, str]:
 
 
 def to_chat(question: str, answer: str) -> dict:
-    return {
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": answer},
-        ]
-    }
+    return {"messages": build_messages(question, answer)}
 
 
 def _markdown_table(frame: pd.DataFrame) -> list[str]:
