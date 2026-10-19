@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+.venv*/
+venv/
+
+# Tools
+.pytest_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+
+# Training outputs and model files (stored on Google Drive / Hugging Face Hub)
+outputs/
+models/
+*.gguf
+*.safetensors
+*.bin
+
+# Local secrets and editor files
+.env
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+~$*.xlsx
