@@ -1,7 +1,7 @@
 # QA dataset: scope, curation and splits
 
 **Scope:** caregivers of children aged 0–59 months in Rwanda, plus maternal nutrition during pregnancy and breastfeeding. Answers are in English and Kinyarwanda.
-**Build:** `python -m src.qa.build_qa_dataset`. Counts are in `data/QA_data/processed/qa_report.md`.
+**Build:** `python -m nutriassist.qa_data.build_qa_dataset`. Counts are in `data/QA_data/processed/qa_report.md`.
 
 ## Inputs
 
@@ -31,9 +31,9 @@ Each example has the form `system` → `user` → `assistant`, with the same sys
 
 Kinyarwanda pairs start as drafts (`review: pending_native_review`). A native speaker reviews them in `data/QA_data/review/kinyarwanda_review.xlsx`:
 
-1. `python -m src.qa.review_sheet` writes or refreshes the sheet. Decisions already made are kept.
+1. `python -m nutriassist.qa_data.review_sheet` writes or refreshes the sheet. Decisions already made are kept.
 2. For each row, set `status` to `approved`, `corrected` (and fill the `*_corrected` columns), or `rejected`.
-3. `python -m src.qa.build_qa_dataset` applies the decisions. Adding `--reviewed-only` keeps only approved or corrected pairs; use it for the final training run.
+3. `python -m nutriassist.qa_data.build_qa_dataset` applies the decisions. Adding `--reviewed-only` keeps only approved or corrected pairs; use it for the final training run.
 
 An approval only covers the draft text that was reviewed. If a draft changes later, the row goes back to `pending`. The review counts in `qa_report.md` can be reported as "pairs verified by a native speaker".
 

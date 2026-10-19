@@ -1,7 +1,7 @@
 # Nutrient cleaning: serving basis, units and column shift
 
 **Source:** `data/raw/food_dataset.xlsx` (Kaggle Food Nutrition Dataset, 2,395 foods). The raw file is never modified.
-**Code:** `src/pipeline/clean_nutrients.py`, called by `src/pipeline/build_foods.py`.
+**Code:** `src/nutriassist/food_data/clean_nutrients.py`, called by `src/nutriassist/food_data/build_foods.py`.
 **Generated counts:** `data/processed/cleaning_report.md`.
 
 Comparing workbook rows with USDA FoodData Central values for the same foods turned up four problems. Each one is listed below with its evidence and the rule that fixes it.

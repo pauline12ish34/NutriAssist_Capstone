@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nutriassist"
+version = "0.1.0"
+description = "NutriAssist-RW: a bilingual (English/Kinyarwanda) child-nutrition assistant for caregivers in Rwanda"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+# Metrics used in the notebook and by the evaluation tests.
+eval = [
+    "sacrebleu>=2.4",
+    "rouge-score>=0.1.2",
+]
+# QLoRA fine-tuning on a GPU (Google Colab).
+train = [
+    "nutriassist[eval]",
+    "torch>=2.2",
+    "transformers>=4.56",
+    "peft>=0.13",
+    "accelerate>=1.0",
+    "bitsandbytes>=0.44",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+]
+dev = [
+    "nutriassist[eval]",
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

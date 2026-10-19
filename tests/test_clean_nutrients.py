@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.pipeline.clean_nutrients import (
+from nutriassist.food_data.clean_nutrients import (
     SHIFT_CHAIN,
     basis_confidence,
     clean_sheet,

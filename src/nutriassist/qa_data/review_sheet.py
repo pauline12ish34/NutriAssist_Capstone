@@ -1,6 +1,6 @@
 """Native-speaker review of the Kinyarwanda QA pairs through an Excel sheet.
 
-``python -m src.qa.review_sheet`` writes ``data/QA_data/review/kinyarwanda_review.xlsx``.
+``python -m nutriassist.qa_data.review_sheet`` writes ``data/QA_data/review/kinyarwanda_review.xlsx``.
 The reviewer sets ``status`` on each row and, when needed, fills the ``corrected``
 columns. Re-exporting keeps every review already made. The dataset builder reads
 the sheet back with :func:`apply_review`.

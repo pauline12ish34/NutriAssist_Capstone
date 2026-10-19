@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 
-from src.pipeline.build_foods import build_food_tables
-from src.pipeline.load_workbook import load_workbook
+from nutriassist.food_data.build_foods import build_food_tables
+from nutriassist.food_data.load_workbook import load_workbook
 
 HEADER = ["food", "Caloric Value", "Water", "Protein", "Fat", "Carbohydrates", "Sodium", "Nutrition Density"]
 

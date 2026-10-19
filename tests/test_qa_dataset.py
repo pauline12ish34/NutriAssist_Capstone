@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 from openpyxl import load_workbook
 
-from src.qa.build_qa_dataset import SYSTEM_PROMPT, assign_splits, build_qa_dataset, original_records
-from src.qa.review_sheet import apply_review, export_review_sheet, load_review
+from nutriassist.qa_data.build_qa_dataset import SYSTEM_PROMPT, assign_splits, build_qa_dataset, original_records
+from nutriassist.qa_data.review_sheet import apply_review, export_review_sheet, load_review
 
 
 @pytest.fixture(scope="module")
