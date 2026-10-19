@@ -1,0 +1,47 @@
+food_id,english_name,display_en,rw_name,rw_aliases,highlight,usda_checked,note
+food_f283fdb3a0a4,pinto beans cooked,cooked beans,ibishyimbo bitetse,ibishyimbo,protein,yes,Pinto beans used as the closest match for common Rwandan mottled beans
+food_9a9e34741742,white beans cooked,cooked white beans,ibishyimbo byera bitetse,,protein,yes,
+food_c59ccf34a367,lentils cooked,cooked lentils,,,protein,yes,
+food_2fed7b7abafb,peas cooked,cooked green peas,amashaza atetse,amashaza,protein,yes,
+food_9518fe1f0958,pigeon peas cooked,cooked pigeon peas,,,protein,yes,
+food_75c9a71ef87e,peanuts raw,groundnuts,ubunyobwa,,protein,yes,Give as paste or flour to children under 4 (choking risk)
+food_66c15098fed8,peanut butter,groundnut paste,ubunyobwa biseye,,protein,yes,
+food_69e28b0cbcaf,egg boiled,boiled egg,igi ritetse,amagi;igi,protein,yes,
+food_8509084f4c17,tilapia cooked,cooked tilapia fish,ifi ya tilapia itetse,amafi;tilapia,protein,yes,
+food_95f0bfe5b1d9,sardines in tomato sauce canned,canned sardines in tomato sauce,sardine,,calcium,yes,
+food_1ee7458fde42,chicken breast cooked,cooked chicken,inyama y'inkoko itetse,inkoko,protein,yes,
+food_060085bc67b7,ground beef cooked,cooked minced beef,inyama y'inka itetse,inyama,protein,yes,
+food_a30f65a7244c,amaranth leaves,amaranth leaves (dodo),dodo,,calcium,yes,Raw leaves
+food_65ce8cb22367,spinach cooked,cooked spinach,epinari itetse,epinari,iron,yes,
+food_924f36516a16,pumpkin leaves cooked,cooked pumpkin leaves,amababi y'igihaza atetse,,iron,yes,
+food_cd05258cc475,sweet potato leaves cooked,cooked sweet potato leaves,amababi y'ibijumba atetse,,iron,yes,
+food_fedc5cb42d68,sweet potato baked,cooked sweet potato,ibijumba bitetse,ibijumba,caloric_value,yes,Vitamin A not reliable in the workbook; orange-fleshed varieties are rich in vitamin A
+food_d3317dc62913,cassava,cassava (raw root),imyumbati,umwumbati,caloric_value,yes,Raw values; must be peeled and cooked before eating
+food_183c830b1370,plantain cooked,cooked plantain,ibitoki bitetse,ibitoki;igitoki,caloric_value,yes,Closest match for cooking bananas
+food_4ebe9eabb972,banana,ripe banana,umuneke,imineke,caloric_value,yes,
+food_101a7cde39ca,avocado,avocado,avoka,,caloric_value,yes,
+food_8d47fdd9a63a,mango,mango,umwembe,imyembe,vitamin_c,yes,
+food_25d7bfe52996,papaya,papaya,ipapayi,amapapayi,vitamin_c,yes,
+food_672360480d38,orange,orange,icunga,amacunga,vitamin_c,yes,
+food_6d580652a68d,guava,guava,ipera,amapera,vitamin_c,yes,
+food_1dc194c41b54,pineapple,pineapple,inanasi,,vitamin_c,yes,
+food_e48e829546ad,millet cooked,cooked millet,uburo butetse,uburo,caloric_value,yes,
+food_7b3ff81cf8c4,white rice cooked,cooked white rice,umuceri utetse,umuceri,caloric_value,yes,
+food_3458ad9643c0,cornmeal whole grain,maize flour (whole grain),ifu y'ibigori,kawunga,caloric_value,yes,Dry flour
+food_822ed652d485,sorghum flour,sorghum flour,ifu y'amasaka,amasaka,iron,yes,Dry flour
+food_84ced16de70b,soy flour roasted,soy flour,ifu ya soya,soya,protein,yes,Dry flour
+food_8f0a551c823e,yogurt,yoghurt,yawurute,,calcium,yes,
+food_704cc5ba60b4,taro cooked,cooked taro,amateke atetse,amateke;iteke,caloric_value,yes,
+food_cdff83c8e588,carrots raw,carrots,karoti,,caloric_value,yes,Vitamin A not reliable in the workbook; carrots are rich in vitamin A
+food_8ca0fb4a8b45,pumpkin cooked,cooked pumpkin,igihaza gitetse,igihaza,caloric_value,yes,
+food_23a1367f4284,cabbage raw,cabbage,amashu,ishu,vitamin_c,yes,
+food_8f3359582350,baked potato,cooked potato,ibirayi bitetse,ibirayi;ikirayi,caloric_value,yes,
+,,isombe (cooked cassava leaves),isombe,,,no,Not in workbook; needs a Rwanda/FAO food composition source
+,,small dried fish (Lake Kivu sardine),isambaza,,,no,Not in workbook; needs a Rwanda/FAO food composition source
+,,small dried fish,indagara,,,no,Not in workbook; needs a Rwanda/FAO food composition source
+,,fermented milk,ikivuguto,,,no,Not in workbook; needs a Rwanda/FAO food composition source
+,,porridge,igikoma,,,no,Recipe; depends on flour and additions
+,,stiff porridge,ubugali,,,no,Recipe; depends on flour
+,,sorghum-soy-maize blended flour,sosoma,,,no,Not in workbook
+,,tree tomato,ibinyomoro,,,no,Not in workbook
+,,passion fruit,marakuja,,,no,Workbook row has unreliable micronutrients
