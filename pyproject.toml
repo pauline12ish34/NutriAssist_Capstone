@@ -30,9 +30,27 @@ train = [
     "matplotlib>=3.8",
     "seaborn>=0.13",
 ]
+# The API server. llama-cpp-python runs the GGUF model on the CPU; on Windows install it from the
+# prebuilt wheels: pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+serve = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "llama-cpp-python>=0.3",
+    "huggingface_hub>=0.23",
+]
+# The Streamlit frontend.
+app = [
+    "streamlit>=1.45",
+    "requests>=2.31",
+]
 dev = [
     "nutriassist[eval]",
     "pytest>=8.0",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "httpx>=0.27",
+    "streamlit>=1.45",
+    "requests>=2.31",
 ]
 
 [tool.setuptools.packages.find]

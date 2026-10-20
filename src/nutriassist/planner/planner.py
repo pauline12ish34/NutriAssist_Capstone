@@ -179,7 +179,8 @@ class MealPlanner:
                 for nutrient, amount in best.nutrients(portion.grams).items():
                     if nutrient in needed:
                         needed[nutrient] = max(needed[nutrient] - amount, 0.0)
-            meals.append(meal)
+            if meal.portions:  # with a short list of available foods a snack can end up empty
+                meals.append(meal)
         return meals, missing
 
     @staticmethod
