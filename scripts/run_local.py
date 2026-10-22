@@ -1,7 +1,7 @@
 """Start the API and the web app together: python scripts/run_local.py
 
 Opens the app at http://localhost:8501 (API docs at http://localhost:8000/docs).
-Stop both with Ctrl+C. Uses models/nutriassist-rw-q8_0.gguf if present, else demo mode;
+Stop both with Ctrl+C. Uses models/nutriassist-rw-q4_k_m.gguf (or -q8_0.gguf) if present, else demo mode;
 set NUTRIASSIST_MODEL_PATH to use another GGUF file.
 """
 

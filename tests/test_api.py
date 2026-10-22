@@ -6,7 +6,7 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from nutriassist.api.app import create_app  # noqa: E402
-from nutriassist.api.settings import Settings, build_chat_model  # noqa: E402
+from nutriassist.api.settings import Settings, build_chat_model, find_model_file  # noqa: E402
 from nutriassist.inference.scripted import ScriptedChatModel  # noqa: E402
 
 
@@ -117,3 +117,12 @@ class TestSettings:
         settings = Settings.from_env()
         assert str(settings.model_path).replace("\\", "/") == "elsewhere/model.gguf"
         assert settings.max_new_tokens == 128 and settings.backend == "auto"
+
+
+def test_model_file_discovery_prefers_the_smaller_export(tmp_path):
+    q4, q8 = tmp_path / "nutriassist-rw-q4_k_m.gguf", tmp_path / "nutriassist-rw-q8_0.gguf"
+    assert find_model_file((q4, q8)) == q4                 # nothing yet: the preferred name
+    q8.touch()
+    assert find_model_file((q4, q8)) == q8                 # only the 8-bit file was downloaded
+    q4.touch()
+    assert find_model_file((q4, q8)) == q4

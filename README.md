@@ -131,7 +131,7 @@ python -m venv .venv
 pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e ".[serve,app,dev]"
 ```
 
-Put the trained model `nutriassist-rw-q8_0.gguf` in `models/` (see [deployment guide](docs/deployment.md#option-1-run-on-your-own-computer)), then:
+Download the trained model `nutriassist-rw-q4_k_m.gguf` (about 1 GB) from Google Drive into `models/` (see [deployment guide](docs/deployment.md#option-1-run-on-your-own-computer)), then:
 
 ```bash
 python scripts/run_local.py

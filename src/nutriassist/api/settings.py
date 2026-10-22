@@ -17,13 +17,22 @@ DEMO_ANSWER = {
 }
 
 
+# Model files the notebook exports, in order of preference when no path is configured.
+DEFAULT_MODEL_FILES = (Path("models/nutriassist-rw-q4_k_m.gguf"), Path("models/nutriassist-rw-q8_0.gguf"))
+
+
+def find_model_file(candidates: tuple[Path, ...] = DEFAULT_MODEL_FILES) -> Path:
+    """The first exported model present on disk, else the preferred name (so a download goes there)."""
+    return next((path for path in candidates if path.exists()), candidates[0])
+
+
 @dataclass(frozen=True)
 class Settings:
     """Read once at start-up. Every value has a default, so the API starts with no configuration."""
 
-    model_path: Path = Path("models/nutriassist-rw-q8_0.gguf")
+    model_path: Path = DEFAULT_MODEL_FILES[0]
     hf_repo: str | None = None              # download the model from this Hugging Face repo if it is missing
-    hf_file: str = "nutriassist-rw-q8_0.gguf"
+    hf_file: str = DEFAULT_MODEL_FILES[0].name
     backend: str = "auto"                   # "auto" (GGUF if available, else demo), "llamacpp" or "demo"
     max_new_tokens: int = 320
     threads: int | None = None
@@ -33,7 +42,7 @@ class Settings:
     def from_env(cls) -> "Settings":
         env = os.environ.get
         return cls(
-            model_path=Path(env("NUTRIASSIST_MODEL_PATH", str(cls.model_path))),
+            model_path=Path(env("NUTRIASSIST_MODEL_PATH")) if env("NUTRIASSIST_MODEL_PATH") else find_model_file(),
             hf_repo=env("NUTRIASSIST_HF_REPO") or None,
             hf_file=env("NUTRIASSIST_HF_FILE", cls.hf_file),
             backend=env("NUTRIASSIST_BACKEND", cls.backend).lower(),

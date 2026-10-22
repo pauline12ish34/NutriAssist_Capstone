@@ -1,7 +1,7 @@
 """CPU backend: a GGUF model run with llama.cpp. Works on ordinary laptops without a GPU.
 
 Requires the ``serve`` extra (llama-cpp-python). The notebook exports the fine-tuned
-model as ``nutriassist-rw-q8_0.gguf``; the chat template is stored inside the file.
+model as ``nutriassist-rw-q4_k_m.gguf`` and ``nutriassist-rw-q8_0.gguf``; the chat template is stored inside the file.
 """
 
 from __future__ import annotations

@@ -7,9 +7,11 @@ NutriAssist-RW has two parts that run together:
 | Backend | FastAPI + llama.cpp | 8000 | `/chat` (safety rules + model), `/meal-plan`, `/foods`, `/health`; Swagger UI at `/docs` |
 | Frontend | Streamlit | 8501 locally, 7860 in Docker | Chat, meal planner and how-to pages in English and Kinyarwanda |
 
-The model is the fine-tuned Qwen2.5-1.5B merged and exported as one GGUF file
-(`nutriassist-rw-q8_0.gguf`, about 1.6 GB) by section 8 of the training notebook. llama.cpp runs it on an
-ordinary CPU, so no GPU is needed for deployment. Without the file, the API starts in **demo mode**: the
+The model is the fine-tuned Qwen2.5-1.5B, merged and exported as a GGUF file by section 8 of the training
+notebook, in two sizes: `nutriassist-rw-q4_k_m.gguf` (about 1 GB, 4-bit, recommended for laptops) and
+`nutriassist-rw-q8_0.gguf` (about 1.6 GB, 8-bit, highest quality). llama.cpp runs it on an ordinary CPU, so
+no GPU is needed for deployment. When no path is configured the API uses the 4-bit file if it is in
+`models/`, otherwise the 8-bit file. Without the file, the API starts in **demo mode**: the
 safety rules and meal planner work, and chat answers are placeholders.
 
 ```
@@ -34,7 +36,8 @@ pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 The extra index gives a prebuilt llama.cpp, so no C++ compiler is needed.
 
 **Get the model** (skip this to try the app in demo mode). Either:
-- download `nutriassist-rw-q8_0.gguf` from Google Drive (`MyDrive/NutriAssist-RW/outputs/`) into the `models/` folder, or
+- download `nutriassist-rw-q4_k_m.gguf` from Google Drive (`MyDrive/NutriAssist-RW/outputs/`) into the `models/`
+  folder (notebook section 8.4 shows how; Git ignores this folder because the file is too large for GitHub), or
 - if you published it to Hugging Face Hub (notebook section 8.3), set the repo name and the API downloads it on first start:
   `set NUTRIASSIST_HF_REPO=your-username/nutriassist-rw` (Windows) or `export NUTRIASSIST_HF_REPO=...` (macOS/Linux).
 
@@ -64,7 +67,7 @@ docker run -p 7860:7860 -v "$(pwd)/models:/home/user/app/models" nutriassist
 ```
 
 On Windows PowerShell use `-v "${PWD}/models:/home/user/app/models"`. Open http://localhost:7860.
-The `models` folder is mounted into the container so the 1.6 GB model is not copied into the image.
+The `models` folder is mounted into the container so the model file is not copied into the image.
 
 ---
 
@@ -115,9 +118,9 @@ Space's *Settings* and click **Factory rebuild**.
 
 | Environment variable | Default | Meaning |
 |---|---|---|
-| `NUTRIASSIST_MODEL_PATH` | `models/nutriassist-rw-q8_0.gguf` | GGUF model file |
+| `NUTRIASSIST_MODEL_PATH` | `models/nutriassist-rw-q4_k_m.gguf`, else `models/nutriassist-rw-q8_0.gguf` | GGUF model file |
 | `NUTRIASSIST_HF_REPO` | none | Hugging Face repo to download the model from if the file is missing |
-| `NUTRIASSIST_HF_FILE` | `nutriassist-rw-q8_0.gguf` | file name in that repo |
+| `NUTRIASSIST_HF_FILE` | `nutriassist-rw-q4_k_m.gguf` | file name in that repo (set `nutriassist-rw-q8_0.gguf` for the larger model) |
 | `NUTRIASSIST_BACKEND` | `auto` | `auto` (model if found, else demo), `llamacpp` (fail without a model), `demo` |
 | `NUTRIASSIST_MAX_NEW_TOKENS` | `320` | longest answer, in tokens; lower is faster |
 | `NUTRIASSIST_THREADS` | all cores | CPU threads for llama.cpp |
