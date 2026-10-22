@@ -1,11 +1,15 @@
 """Run a list of training configurations and collect one results row per run.
 
-Results are written after every run and finished runs are skipped, so a Colab
-disconnect costs at most the run that was in progress.
+Nothing finished is ever repeated after a Colab disconnect:
+- training resumes from its latest checkpoint (see ``finetune``);
+- an adapter whose training finished is scored without retraining;
+- validation answers are saved as they are generated and reused;
+- results are written after every run, and runs already in ``experiments.csv`` are skipped.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Callable, Protocol, Sequence
 
@@ -13,7 +17,7 @@ import pandas as pd
 
 from ..evaluation.evaluator import Evaluator
 from ..inference.base import ChatModel
-from .config import TrainingConfig
+from .config import TRAINING_SUMMARY_FILE, TrainingConfig
 from .dataset import QADataset
 
 
@@ -28,6 +32,7 @@ class TrainingRunLike(Protocol):
 
 
 FineTunerFactory = Callable[[TrainingConfig], FineTuner]
+AdapterLoader = Callable[[TrainingConfig, Path], ChatModel]
 
 
 class ExperimentRunner:
@@ -38,7 +43,8 @@ class ExperimentRunner:
     """
 
     def __init__(self, dataset: QADataset, output_dir: str | Path, evaluator: Evaluator | None = None,
-                 fine_tuner_factory: FineTunerFactory | None = None, checkpoints_dir: str | Path | None = None) -> None:
+                 fine_tuner_factory: FineTunerFactory | None = None, checkpoints_dir: str | Path | None = None,
+                 adapter_loader: AdapterLoader | None = None) -> None:
         self.dataset = dataset
         self.output_dir = Path(output_dir)
         self.adapters_dir = self.output_dir / "adapters"
@@ -47,6 +53,7 @@ class ExperimentRunner:
         self.checkpoints_dir = Path(checkpoints_dir) if checkpoints_dir else self.output_dir / "checkpoints"
         self.evaluator = evaluator or Evaluator()
         self.fine_tuner_factory = fine_tuner_factory or self._qlora_fine_tuner
+        self.adapter_loader = adapter_loader or self._load_adapter
 
     def results(self) -> pd.DataFrame:
         return pd.read_csv(self.results_path) if self.results_path.exists() else pd.DataFrame()
@@ -68,12 +75,21 @@ class ExperimentRunner:
         return self.results()
 
     def run_one(self, config: TrainingConfig) -> dict:
-        model, run = self.fine_tuner_factory(config).train(self.dataset)
-        validation = self.evaluator.evaluate(model, self.dataset.val)
+        adapter_dir = self.adapters_dir / config.name
+        summary_path = adapter_dir / TRAINING_SUMMARY_FILE
+        if summary_path.exists():
+            print(f"[{config.name}] training already finished; scoring the saved adapter")
+            summary = json.loads(summary_path.read_text())
+            model = self.adapter_loader(config, adapter_dir)
+        else:
+            model, run = self.fine_tuner_factory(config).train(self.dataset)
+            summary = run.summary()
+        validation = self.evaluator.evaluate(model, self.dataset.val,
+                                             cache_path=self.predictions_dir / f"{config.name}_val_answers.jsonl")
         validation.save(self.predictions_dir, f"{config.name}_val")
         del model
         self._release_memory()
-        return {**run.summary(), **{f"val_{k}": round(v, 3) for k, v in validation.scores["all"].items()}}
+        return {**summary, **{f"val_{k}": round(v, 3) for k, v in validation.scores["all"].items()}}
 
     def best(self, metric: str = "val_ROUGE-L", tie_breaker: str = "val_loss") -> str:
         """Name of the experiment with the highest ``metric``; the lowest ``tie_breaker`` breaks ties."""
@@ -93,6 +109,12 @@ class ExperimentRunner:
         from .finetune import QLoRAFineTuner  # imported lazily: needs torch and a GPU
 
         return QLoRAFineTuner(config, self.adapters_dir, self.checkpoints_dir)
+
+    @staticmethod
+    def _load_adapter(config: TrainingConfig, adapter_dir: Path) -> ChatModel:
+        from ..inference.transformers_model import TransformersChatModel  # needs torch
+
+        return TransformersChatModel.from_pretrained(config.base_model, adapter_dir)
 
     @staticmethod
     def _release_memory() -> None:

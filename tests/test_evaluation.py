@@ -121,3 +121,39 @@ def test_lora_target_modules_from_module_names():
              "model.layers.0.self_attn.q_proj.lora_A.default", "model.layers.0.mlp.down_proj.lora_A",
              "model.layers.1.mlp.down_proj.lora_A"]
     assert lora_target_modules(names) == ["down_proj", "q_proj"]
+
+
+class FlakyModel(ScriptedChatModel):
+    """Answers ``fail_after`` questions, then fails like a Colab disconnect."""
+
+    def __init__(self, fail_after=None):
+        super().__init__(lambda q: f"answer to {q}")
+        self.fail_after = fail_after
+
+    def generate_batch(self, conversations):
+        if self.fail_after is not None and len(self.calls) + len(conversations) > self.fail_after:
+            raise RuntimeError("disconnected")
+        return super().generate_batch(conversations)
+
+
+class TestResumableEvaluation:
+    examples = [make_example(f"Question {i}?", f"Answer {i}.", id=f"q-{i}") for i in range(7)]
+
+    def test_interrupted_evaluation_reuses_saved_answers(self, tmp_path):
+        cache = tmp_path / "val_answers.jsonl"
+        with pytest.raises(RuntimeError):
+            Evaluator().evaluate(FlakyModel(fail_after=4), self.examples, cache_path=cache, chunk_size=2)
+        assert len(cache.read_text(encoding="utf-8").splitlines()) == 4   # two chunks were saved
+
+        resumed = FlakyModel()
+        result = Evaluator().evaluate(resumed, self.examples, cache_path=cache, chunk_size=2)
+        assert resumed.calls == [ex.question for ex in self.examples[4:]]   # only the missing ones
+        assert result.predictions["prediction"].tolist() == [f"answer to {ex.question}" for ex in self.examples]
+
+    def test_a_line_cut_off_by_a_disconnect_is_ignored(self, tmp_path):
+        cache = tmp_path / "answers.jsonl"
+        cache.write_text('{"key": "q-0|Question 0?", "answer": "saved"}\n{"key": "q-1|Quest', encoding="utf-8")
+        model = FlakyModel()
+        result = Evaluator().evaluate(model, self.examples[:2], cache_path=cache)
+        assert result.predictions["prediction"].tolist() == ["saved", "answer to Question 1?"]
+        assert model.calls == ["Question 1?"]

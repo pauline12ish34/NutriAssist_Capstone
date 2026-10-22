@@ -5,7 +5,7 @@ import pytest
 
 from conftest import make_example
 from nutriassist.inference.scripted import ScriptedChatModel
-from nutriassist.training.config import TrainingConfig
+from nutriassist.training.config import TRAINING_SUMMARY_FILE, TrainingConfig
 from nutriassist.training.dataset import QADataset
 from nutriassist.training.experiments import ExperimentRunner
 
@@ -72,3 +72,24 @@ def test_duplicate_names_are_rejected(runner):
 def test_best_needs_results(runner):
     with pytest.raises(ValueError):
         runner.best()
+
+
+def test_finished_training_is_scored_without_retraining(tmp_path):
+    """Training finished but the session died before the validation scores were saved."""
+    FakeFineTuner.trained = []
+    dataset = QADataset(train=[make_example()], val=[make_example("Q1?", "Give beans.")], test=[])
+    adapter_dir = tmp_path / "adapters" / "rank_16"
+    adapter_dir.mkdir(parents=True)
+    (adapter_dir / TRAINING_SUMMARY_FILE).write_text('{"experiment": "rank_16", "train_minutes": 7.5}')
+    loaded = []
+
+    def load_adapter(config, path):
+        loaded.append(path)
+        return ScriptedChatModel(lambda q: "Give beans.")
+
+    runner = ExperimentRunner(dataset, tmp_path, fine_tuner_factory=lambda c: FakeFineTuner(c, tmp_path / "adapters"),
+                              adapter_loader=load_adapter)
+    row = runner.run([TrainingConfig(name="rank_16")]).iloc[0]
+    assert FakeFineTuner.trained == []
+    assert loaded == [adapter_dir]
+    assert row["train_minutes"] == 7.5 and row["val_ROUGE-L"] == pytest.approx(100)

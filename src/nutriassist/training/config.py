@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, replace
 
 DEFAULT_BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
+# Written into an adapter folder when its training has finished; the experiment runner never retrains it.
+TRAINING_SUMMARY_FILE = "training_summary.json"
 
 
 @dataclass(frozen=True)
@@ -20,11 +22,12 @@ class TrainingConfig:
     grad_accum: int = 4
     warmup_ratio: float = 0.05
     max_length: int = 768
+    save_steps: int = 10               # checkpoint interval: a disconnect loses at most this many steps
     seed: int = 42
 
     def __post_init__(self) -> None:
-        if self.learning_rate <= 0 or self.lora_rank <= 0 or self.epochs <= 0:
-            raise ValueError(f"learning_rate, lora_rank and epochs must be positive in {self.name}")
+        if self.learning_rate <= 0 or self.lora_rank <= 0 or self.epochs <= 0 or self.save_steps <= 0:
+            raise ValueError(f"learning_rate, lora_rank, epochs and save_steps must be positive in {self.name}")
         if not 0 <= self.lora_dropout < 1 or not 0 <= self.warmup_ratio < 1:
             raise ValueError(f"lora_dropout and warmup_ratio must be in [0, 1) in {self.name}")
 

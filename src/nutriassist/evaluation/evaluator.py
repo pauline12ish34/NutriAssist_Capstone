@@ -67,8 +67,14 @@ class Evaluator:
         self.referrals = referrals or ReferralDetector()
         self.language = language or LanguageDetector()
 
-    def evaluate(self, model: ChatModel, examples: Sequence[ChatExample]) -> EvaluationResult:
-        answers = model.generate_batch([example.prompt_messages for example in examples])
+    def evaluate(self, model: ChatModel, examples: Sequence[ChatExample], cache_path: str | Path | None = None,
+                 chunk_size: int = 16) -> EvaluationResult:
+        """Generate an answer per example and score them.
+
+        With ``cache_path``, answers are appended to that file every ``chunk_size`` examples and
+        reused on the next call, so an interrupted evaluation continues where it stopped.
+        """
+        answers = self._generate(model, examples, Path(cache_path) if cache_path else None, chunk_size)
         predictions = self.predictions_frame(examples, answers)
         scores = {}
         for group in GROUPS:
@@ -76,6 +82,25 @@ class Evaluator:
             if subset:
                 scores[group] = self.score(model, [examples[i] for i in subset], predictions.iloc[subset])
         return EvaluationResult(predictions, scores)
+
+    @staticmethod
+    def _generate(model: ChatModel, examples: Sequence[ChatExample], cache_path: Path | None,
+                  chunk_size: int) -> list[str]:
+        if cache_path is None:
+            return model.generate_batch([example.prompt_messages for example in examples])
+        cached = _read_answer_cache(cache_path)
+        missing = [ex for ex in examples if _cache_key(ex) not in cached]
+        if cached and missing:
+            print(f"Reusing {len(examples) - len(missing)} saved answers; generating {len(missing)}")
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        for start in range(0, len(missing), chunk_size):
+            chunk = missing[start:start + chunk_size]
+            answers = model.generate_batch([example.prompt_messages for example in chunk])
+            with cache_path.open("a", encoding="utf-8") as handle:
+                for example, answer in zip(chunk, answers):
+                    cached[_cache_key(example)] = answer
+                    handle.write(json.dumps({"key": _cache_key(example), "answer": answer}, ensure_ascii=False) + "\n")
+        return [cached[_cache_key(example)] for example in examples]
 
     def predictions_frame(self, examples: Sequence[ChatExample], answers: Sequence[str]) -> pd.DataFrame:
         return pd.DataFrame(
@@ -102,6 +127,24 @@ class Evaluator:
         if not danger.empty:
             scores["danger_referral_rate_%"] = 100 * float(danger["prediction_refers"].mean())
         return scores
+
+
+def _cache_key(example: ChatExample) -> str:
+    return f"{example.id}|{example.question}"
+
+
+def _read_answer_cache(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    answers = {}
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:  # a line cut off by a disconnect
+                continue
+            answers[row["key"]] = row["answer"]
+    return answers
 
 
 def compare(baseline: EvaluationResult, tuned: EvaluationResult) -> pd.DataFrame:

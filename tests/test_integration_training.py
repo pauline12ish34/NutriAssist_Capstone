@@ -19,7 +19,7 @@ from conftest import make_example  # noqa: E402
 from nutriassist.evaluation import Evaluator  # noqa: E402
 from nutriassist.inference.base import GenerationSettings  # noqa: E402
 from nutriassist.inference.transformers_model import TransformersChatModel  # noqa: E402
-from nutriassist.training.config import TrainingConfig  # noqa: E402
+from nutriassist.training.config import TRAINING_SUMMARY_FILE, TrainingConfig  # noqa: E402
 from nutriassist.training.dataset import QADataset  # noqa: E402
 from nutriassist.training.experiments import ExperimentRunner  # noqa: E402
 from nutriassist.training.finetune import QLoRAFineTuner  # noqa: E402
@@ -52,9 +52,10 @@ def tiny_dataset():
     return QADataset(train=train, val=val, test=val)
 
 
-def tiny_config(model_dir, name="tiny"):
-    return TrainingConfig(name=name, base_model=model_dir, epochs=1, batch_size=2, grad_accum=2,
-                          learning_rate=1e-3, lora_rank=4, max_length=256)
+def tiny_config(model_dir, name="tiny", **changes):
+    settings = dict(name=name, base_model=model_dir, epochs=1, batch_size=2, grad_accum=2,
+                    learning_rate=1e-3, lora_rank=4, max_length=256)
+    return TrainingConfig(**{**settings, **changes})
 
 
 def test_train_save_reload_and_generate(tiny_model_dir, tiny_dataset, tmp_path):
@@ -100,3 +101,34 @@ def test_experiment_runner_with_real_fine_tuner(tiny_model_dir, tiny_dataset, tm
     row = results.iloc[0]
     assert row["experiment"] == "run_a" and row["gpu"] == "cpu"
     assert {"val_ROUGE-L", "val_perplexity", "train_minutes", "peak_gpu_reserved_GB"} <= set(results.columns)
+
+
+class Disconnect(transformers.TrainerCallback):
+    """Stops training like a lost Colab session, right after a given step."""
+
+    def __init__(self, after_step):
+        self.after_step = after_step
+
+    def on_step_end(self, args, state, control, **kwargs):
+        if state.global_step == self.after_step:
+            raise ConnectionError("Colab disconnected")
+
+
+def test_training_resumes_from_the_last_checkpoint(tiny_model_dir, tiny_dataset, tmp_path):
+    # 8 examples, batch 2: 4 steps per epoch, 2 epochs = 8 steps; checkpoints every 2 steps.
+    config = tiny_config(tiny_model_dir, "resume", epochs=2, grad_accum=1, save_steps=2)
+    folders = (tmp_path / "adapters", tmp_path / "ckpt")
+
+    first = QLoRAFineTuner(config, *folders, require_gpu=False, callbacks=(Disconnect(after_step=5),))
+    with pytest.raises(ConnectionError):
+        first.train(tiny_dataset)
+    assert first.last_checkpoint().endswith("checkpoint-4")
+    assert not (tmp_path / "adapters" / "resume" / TRAINING_SUMMARY_FILE).exists()
+
+    second = QLoRAFineTuner(config, *folders, require_gpu=False)
+    _, run = second.train(tiny_dataset)
+    assert max(h["step"] for h in run.log_history) == 8
+    assert run.sessions == 2
+    assert run.train_minutes > 0
+    assert (run.adapter_dir / TRAINING_SUMMARY_FILE).exists()
+    assert not (tmp_path / "ckpt" / "resume").exists()       # checkpoints removed after success

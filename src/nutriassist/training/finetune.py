@@ -1,26 +1,31 @@
 """QLoRA fine-tuning: a frozen 4-bit base model plus small trainable LoRA adapters.
 
-Requires a CUDA GPU and the ``train`` extra (torch, transformers, peft, bitsandbytes).
+Training saves a checkpoint every ``save_steps`` steps and resumes from the latest one, so a Colab
+disconnect loses at most a few minutes. Training time and peak GPU memory are added up across
+sessions. Requires a CUDA GPU and the ``train`` extra (torch, transformers, peft, bitsandbytes).
 """
 
 from __future__ import annotations
 
 import gc
 import json
+import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import torch
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from transformers import DataCollatorForSeq2Seq, Trainer, TrainingArguments, set_seed
+from transformers import DataCollatorForSeq2Seq, Trainer, TrainerCallback, TrainingArguments, set_seed
+from transformers.trainer_utils import get_last_checkpoint
 
 from ..inference.transformers_model import TransformersChatModel, compute_dtype, load_causal_lm, load_tokenizer
-from .config import TrainingConfig
+from .config import TRAINING_SUMMARY_FILE, TrainingConfig
 from .dataset import QADataset
 from .encoding import IGNORE_INDEX, ChatEncoder
 
 GIB = 1024**3
+PROGRESS_FILE = "progress.json"   # in the checkpoint folder: time and memory used so far
 
 
 @dataclass
@@ -38,6 +43,7 @@ class TrainingRun:
     total_params: int
     gpu_name: str
     log_history: list[dict] = field(default_factory=list)
+    sessions: int = 1                      # Colab sessions the training was spread over
 
     def summary(self) -> dict:
         return {
@@ -56,7 +62,31 @@ class TrainingRun:
             "train_loss": round(self.train_loss, 4),
             "val_loss": round(self.val_loss, 4),
             "gpu": self.gpu_name,
+            "sessions": self.sessions,
         }
+
+
+class _ProgressCallback(TrainerCallback):
+    """Saves the time and peak GPU memory used so far next to every checkpoint."""
+
+    def __init__(self, path: Path, previous: dict, on_gpu: bool) -> None:
+        self.path = path
+        self.previous = previous
+        self.on_gpu = on_gpu
+        self.start = time.perf_counter()
+
+    def totals(self) -> dict:
+        allocated = torch.cuda.max_memory_allocated() / GIB if self.on_gpu else 0.0
+        reserved = torch.cuda.max_memory_reserved() / GIB if self.on_gpu else 0.0
+        return {
+            "seconds": self.previous.get("seconds", 0.0) + time.perf_counter() - self.start,
+            "peak_allocated_gb": max(self.previous.get("peak_allocated_gb", 0.0), allocated),
+            "peak_reserved_gb": max(self.previous.get("peak_reserved_gb", 0.0), reserved),
+            "sessions": self.previous.get("sessions", 0) + 1,
+        }
+
+    def on_save(self, args, state, control, **kwargs):
+        self.path.write_text(json.dumps(self.totals()))
 
 
 def free_gpu_memory() -> None:
@@ -69,7 +99,7 @@ class QLoRAFineTuner:
     """Trains LoRA adapters on every linear layer of a 4-bit (NF4) base model."""
 
     def __init__(self, config: TrainingConfig, adapters_dir: str | Path, checkpoints_dir: str | Path,
-                 require_gpu: bool = True) -> None:
+                 require_gpu: bool = True, callbacks: tuple[TrainerCallback, ...] = ()) -> None:
         # require_gpu=False lets the integration test train a tiny model on a CPU (no 4-bit quantisation there).
         self.on_gpu = torch.cuda.is_available()
         if require_gpu and not self.on_gpu:
@@ -77,6 +107,7 @@ class QLoRAFineTuner:
         self.config = config
         self.adapter_dir = Path(adapters_dir) / config.name
         self.checkpoint_dir = Path(checkpoints_dir) / config.name
+        self.callbacks = callbacks
 
     def train(self, dataset: QADataset) -> tuple[TransformersChatModel, TrainingRun]:
         cfg = self.config
@@ -94,16 +125,23 @@ class QLoRAFineTuner:
         model = self._build_model()
         trainable, total = model.get_nb_trainable_parameters()
 
+        resume_from = self.last_checkpoint()
+        progress_path = self.checkpoint_dir / PROGRESS_FILE
+        previous = json.loads(progress_path.read_text()) if resume_from and progress_path.exists() else {}
+        if resume_from:
+            print(f"[{cfg.name}] resuming from {Path(resume_from).name}")
+        progress = _ProgressCallback(progress_path, previous, self.on_gpu)
+
         trainer = Trainer(
             model=model,
             args=self._training_arguments(len(train_data)),
             train_dataset=train_data,
             eval_dataset=val_data,
             data_collator=DataCollatorForSeq2Seq(tokenizer, padding=True, label_pad_token_id=IGNORE_INDEX),
+            callbacks=[progress, *self.callbacks],
         )
-        start = time.perf_counter()
-        output = trainer.train()
-        minutes = (time.perf_counter() - start) / 60
+        trainer.train(resume_from_checkpoint=resume_from)
+        totals = progress.totals()
 
         self.adapter_dir.mkdir(parents=True, exist_ok=True)
         model.save_pretrained(self.adapter_dir)
@@ -112,20 +150,30 @@ class QLoRAFineTuner:
         (self.adapter_dir / "log_history.json").write_text(json.dumps(history, indent=2))
         (self.adapter_dir / "training_config.json").write_text(json.dumps(cfg.to_dict(), indent=2))
 
+        # Losses logged every few steps, else (a very short run) the trainer's final average.
+        train_losses = [h["loss"] for h in history if "loss" in h] or [h["train_loss"] for h in history if "train_loss" in h][-1:]
         run = TrainingRun(
             config=cfg,
             adapter_dir=self.adapter_dir,
-            train_minutes=minutes,
-            peak_gpu_allocated_gb=torch.cuda.max_memory_allocated() / GIB if self.on_gpu else 0.0,
-            peak_gpu_reserved_gb=torch.cuda.max_memory_reserved() / GIB if self.on_gpu else 0.0,
-            train_loss=output.training_loss,
+            train_minutes=totals["seconds"] / 60,
+            peak_gpu_allocated_gb=totals["peak_allocated_gb"],
+            peak_gpu_reserved_gb=totals["peak_reserved_gb"],
+            # Mean of the logged losses: unlike Trainer's training_loss it also covers resumed sessions.
+            train_loss=sum(train_losses) / len(train_losses) if train_losses else float("nan"),
             val_loss=[h["eval_loss"] for h in history if "eval_loss" in h][-1],
             trainable_params=trainable,
             total_params=total,
             gpu_name=torch.cuda.get_device_name(0) if self.on_gpu else "cpu",
             log_history=history,
+            sessions=totals["sessions"],
         )
+        # Written last: its presence means the adapter is complete and never needs training again.
+        (self.adapter_dir / TRAINING_SUMMARY_FILE).write_text(json.dumps(run.summary(), indent=2))
+        shutil.rmtree(self.checkpoint_dir, ignore_errors=True)
         return TransformersChatModel(model, tokenizer, name=f"{cfg.base_model} + {cfg.name}"), run
+
+    def last_checkpoint(self) -> str | None:
+        return get_last_checkpoint(str(self.checkpoint_dir)) if self.checkpoint_dir.is_dir() else None
 
     def _build_model(self):
         cfg = self.config
@@ -162,7 +210,9 @@ class QLoRAFineTuner:
             gradient_checkpointing_kwargs={"use_reentrant": False},
             logging_steps=5,
             eval_strategy="epoch",
-            save_strategy="no",
+            save_strategy="steps",
+            save_steps=cfg.save_steps,
+            save_total_limit=1,             # only the latest checkpoint is kept (about 120 MB on Drive)
             report_to="none",
             seed=cfg.seed,
         )
