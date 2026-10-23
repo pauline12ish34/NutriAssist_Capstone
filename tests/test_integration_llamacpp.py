@@ -4,7 +4,10 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("llama_cpp")
+try:
+    import llama_cpp  # noqa: F401
+except (ImportError, RuntimeError) as error:  # RuntimeError: installed, but the DLL is blocked (e.g. Smart App Control)
+    pytest.skip(f"llama.cpp is not usable here: {error}", allow_module_level=True)
 from fastapi.testclient import TestClient  # noqa: E402
 
 from nutriassist.api.app import create_app  # noqa: E402
