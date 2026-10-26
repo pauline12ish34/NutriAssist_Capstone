@@ -29,6 +29,7 @@ train = [
     "peft>=0.14",
     "accelerate>=1.0",
     "bitsandbytes>=0.44",
+    "datasets>=2.19",                 # the Kinyarwanda corpus for continued pre-training
     "matplotlib>=3.8",
     "seaborn>=0.13",
 ]

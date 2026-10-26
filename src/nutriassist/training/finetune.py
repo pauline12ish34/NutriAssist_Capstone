@@ -95,6 +95,25 @@ def free_gpu_memory() -> None:
         torch.cuda.empty_cache()
 
 
+def qlora_model(base_model: str, rank: int, alpha: int, dropout: float):
+    """A 4-bit base model with trainable LoRA adapters on every linear layer of its language model."""
+    model = load_causal_lm(base_model, quantize_4bit=True)
+    # Casts norms to float32 and enables input gradients so checkpointing works on a 4-bit model.
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+    lora = LoraConfig(
+        r=rank,
+        lora_alpha=alpha,
+        lora_dropout=dropout,
+        target_modules="all-linear",   # attention (q, k, v, o) and MLP (gate, up, down) projections
+        # Gemma 3 4B also has an image encoder; the questions are text only, so adapt the language model only.
+        exclude_modules=r".*(vision_tower|multi_modal_projector).*",
+        task_type="CAUSAL_LM",
+    )
+    model = get_peft_model(model, lora)
+    model.config.use_cache = False  # the KV cache is useless during training and conflicts with checkpointing
+    return model
+
+
 class QLoRAFineTuner:
     """Trains LoRA adapters on every linear layer of a 4-bit (NF4) base model."""
 
@@ -177,21 +196,7 @@ class QLoRAFineTuner:
 
     def _build_model(self):
         cfg = self.config
-        model = load_causal_lm(cfg.base_model, quantize_4bit=True)
-        # Casts norms to float32 and enables input gradients so checkpointing works on a 4-bit model.
-        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
-        lora = LoraConfig(
-            r=cfg.lora_rank,
-            lora_alpha=cfg.lora_alpha,
-            lora_dropout=cfg.lora_dropout,
-            target_modules="all-linear",   # attention (q, k, v, o) and MLP (gate, up, down) projections
-            # Gemma 3 4B also has an image encoder; the questions are text only, so adapt the language model only.
-            exclude_modules=r".*(vision_tower|multi_modal_projector).*",
-            task_type="CAUSAL_LM",
-        )
-        model = get_peft_model(model, lora)
-        model.config.use_cache = False  # the KV cache is useless during training and conflicts with checkpointing
-        return model
+        return qlora_model(cfg.base_model, cfg.lora_rank, cfg.lora_alpha, cfg.lora_dropout)
 
     def _training_arguments(self, num_examples: int) -> TrainingArguments:
         cfg = self.config

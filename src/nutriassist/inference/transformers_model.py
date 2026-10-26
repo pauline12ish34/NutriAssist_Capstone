@@ -5,6 +5,7 @@ Used on a GPU (training notebook, GPU server). Requires the ``train`` extra.
 
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 from typing import Sequence
@@ -32,8 +33,13 @@ def load_tokenizer(name_or_path: str | Path):
 
 def attention_implementation(name_or_path: str | Path) -> str | None:
     """Gemma 2 and 3 cap their attention scores ("soft-capping"), which only the eager attention code
-    computes exactly; Google recommends it for fine-tuning. Other models use the library default."""
-    return "eager" if "gemma" in str(name_or_path).lower() else None
+    computes exactly; Google recommends it for fine-tuning. Other models use the library default.
+    A local folder (e.g. a model after continued pre-training) is recognised by its ``config.json``."""
+    name = str(name_or_path)
+    config = Path(name_or_path) / "config.json"
+    if config.exists():
+        name = json.loads(config.read_text(encoding="utf-8")).get("model_type", name)
+    return "eager" if "gemma" in name.lower() else None
 
 
 def load_causal_lm(name_or_path: str | Path, quantize_4bit: bool = True):

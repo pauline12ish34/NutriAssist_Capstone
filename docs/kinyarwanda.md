@@ -141,6 +141,10 @@ Coverage grows with every reviewed wording and pair; quality stays at the level 
    the reported training results do not change.
 2. **Read `logs/unanswered.jsonl`** from time to time. Questions asked often with no reviewed answer
    become new extra wordings (when an existing answer fits) or new reviewed pairs.
-3. **Retrain on a base model with more Kinyarwanda** when one becomes available at this size
-   (experiments 7–8 in the notebook compare Gemma 3 and Gemma 2). Even then, its Kinyarwanda should
-   pass the same native-speaker review before the app shows it.
+3. **Give the base model more Kinyarwanda.** Experiments 7–9 in the notebook compare Gemma 3 (1B, 4B)
+   and Gemma 2 (2B). Section 5.0b then continues pre-training the base model that knows the most
+   Kinyarwanda on about 5 million tokens of plain Kinyarwanda text (`CircuitNotion/kinyarwanda_corpus`,
+   MIT licence, sources not documented), with every validation and test question and answer removed
+   from the text, before the usual fine-tune (experiment 10, `src/nutriassist/training/pretrain.py`).
+   Section 5.3 also compares decoding settings that discourage repetition loops. Whatever the scores,
+   the model's Kinyarwanda must pass the same native-speaker review before the app shows it.
