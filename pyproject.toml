@@ -11,6 +11,8 @@ requires-python = ">=3.10"
 dependencies = [
     "pandas>=2.0",
     "openpyxl>=3.1",
+    "numpy>=1.26",
+    "scikit-learn>=1.4",    # character n-gram matching of questions to the reviewed answers
 ]
 
 [project.optional-dependencies]
@@ -24,7 +26,7 @@ train = [
     "nutriassist[eval]",
     "torch>=2.2",
     "transformers>=4.56",
-    "peft>=0.13",
+    "peft>=0.14",
     "accelerate>=1.0",
     "bitsandbytes>=0.44",
     "matplotlib>=3.8",
@@ -37,6 +39,18 @@ serve = [
     "uvicorn[standard]>=0.29",
     "llama-cpp-python>=0.3",
     "huggingface_hub>=0.23",
+]
+# NLLB-200 machine translation (NUTRIASSIST_KINYARWANDA=translate, and scripts/evaluate_pipeline.py).
+# Off in the app: a native speaker judged the translations not good enough (docs/kinyarwanda.md).
+# For a CPU-only torch add --extra-index-url https://download.pytorch.org/whl/cpu
+translate = [
+    "torch>=2.2",
+    "transformers>=4.56",
+    "sentencepiece>=0.2",
+]
+# Optional sentence embeddings for matching (off by default: they did not help, see docs/kinyarwanda.md).
+embeddings = [
+    "sentence-transformers>=3.0",
 ]
 # The Streamlit frontend.
 app = [

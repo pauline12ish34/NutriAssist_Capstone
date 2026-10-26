@@ -26,6 +26,7 @@ local foods sized for the child's age.
 | Feature | What it does | Where |
 |---|---|---|
 | Bilingual chat assistant | Answers in the language of the question, from a Qwen2.5-1.5B model fine-tuned with QLoRA on 513 curated question-answer pairs | `src/nutriassist/assistant.py`, `notebooks/` |
+| Reviewed Kinyarwanda answers | Kinyarwanda is shown only from answers approved by a native speaker: a matching question gets its reviewed answer word for word, otherwise the app offers up to three "Did you mean...?" reviewed questions. The fine-tuned model's own Kinyarwanda, and machine translation through English, were evaluated and judged unreliable ([why](docs/kinyarwanda.md)) | `src/nutriassist/knowledge.py`, `src/nutriassist/terms.py` |
 | Safety layer | Rule-based detection of WHO/IMCI danger signs in English and Kinyarwanda answers urgent cases with a fixed referral before the model is called; blocks medicine doses; adds a referral when a medical answer lacks one | `src/nutriassist/safety/` |
 | Meal planner | 1–7 day plans for children aged 6–59 months from 33 local foods, meeting WHO energy targets and minimum dietary diversity, with portions in tablespoons | `src/nutriassist/planner/` |
 | REST API | FastAPI with Swagger UI, input validation and clear errors | `src/nutriassist/api/` |
@@ -41,7 +42,10 @@ _Add screenshots of the chat (English and Kinyarwanda), an urgent safety answer,
 ```
                     ┌────────────────────────── FastAPI backend ───────────────────────────┐
  Browser ─► Streamlit ─HTTP─► /chat ─► language detection ─► danger-sign rules ─┬─ urgent ─► fixed referral message
- (app/)              │                                                          └─ other ──► LLM (llama.cpp, GGUF)
+ (app/)              │                                                          └─ other ──► matches a reviewed question? ─ yes ─► reviewed answer
+                     │                                                                         │ no
+                     │                                       Kinyarwanda: "no checked answer" + "Did you mean...?" reviewed questions
+                     │                                       English:     LLM (llama.cpp, GGUF)
                      │                                                                         └► dose check, referral check
                      └──────► /meal-plan ─► targets by age (WHO/FAO) ─► greedy food selection ─► portions, coverage, tips
                                                                          (food table, 33 local foods)
@@ -84,7 +88,10 @@ _Fill in from `final_comparison.csv` and `experiment_table.csv` after training (
 │   └── views/                   chat, meal planner and how-to pages
 ├── src/nutriassist/             Python package (installable)
 │   ├── api/                     FastAPI app, request/response schemas, settings
-│   ├── assistant.py             chat pipeline: language → safety rules → model → output checks
+│   ├── assistant.py             chat pipeline: language → safety rules → reviewed answers → model → output checks
+│   ├── knowledge.py             matching questions to the reviewed answers, "Did you mean...?" suggestions
+│   ├── terms.py                 bilingual foods, illnesses and health terms (matching check, translation)
+│   ├── translation.py           NLLB-200 translation through English (evaluated, off in the app)
 │   ├── safety/                  danger-sign rules, detector, referral detection, messages
 │   ├── planner/                 nutrient targets, food catalogue, meal planner, tips
 │   ├── inference/               ChatModel interface and GPU / CPU / scripted implementations
@@ -100,7 +107,7 @@ _Fill in from `final_comparison.csv` and `experiment_table.csv` after training (
 │   ├── processed/               cleaned food tables
 │   ├── QA_data/                 QA sources, processed splits, review sheets
 │   └── reference/               Kinyarwanda food names, planner foods
-├── tests/                       176 tests (unit, integration, end-to-end)
+├── tests/                       239 tests (unit, integration, end-to-end)
 ├── docs/                        data, cleaning, dataset and deployment documentation
 ├── deploy/hf-space/             Hugging Face Space build files
 ├── scripts/                     local launcher, container start script
@@ -165,7 +172,7 @@ python -m nutriassist.qa_data.build_qa_dataset
 ## Testing
 
 ```bash
-pytest                    # all 176 tests
+pytest                    # all 239 tests
 pytest -m "not integration"   # fast unit tests only
 ```
 

@@ -12,7 +12,7 @@ import pandas as pd
 from ..inference.base import ChatModel
 from ..language import LanguageDetector
 from ..training.dataset import ChatExample
-from .metrics import ReferralDetector, TextMetrics, classification_scores
+from .metrics import ReferralDetector, TextMetrics, classification_scores, is_repetition_loop
 
 SAFETY_CATEGORY = "safety_redirect"
 GROUPS = ("all", "en", "rw")
@@ -120,6 +120,7 @@ class Evaluator:
         if isinstance(model, SupportsPerplexity):
             scores["perplexity"] = model.perplexity(examples)
         scores["language_match_%"] = 100 * float((predictions["answer_lang"] == predictions["lang"]).mean())
+        scores["repetition_loop_%"] = 100 * float(predictions["prediction"].map(is_repetition_loop).mean())
         referral = classification_scores(predictions["reference_refers"].tolist(),
                                          predictions["prediction_refers"].tolist())
         scores.update({f"referral_{name}_%": value for name, value in referral.as_percentages().items()})

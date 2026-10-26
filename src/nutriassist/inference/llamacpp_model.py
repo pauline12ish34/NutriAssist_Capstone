@@ -37,6 +37,9 @@ class LlamaCppChatModel(ChatModel):
     def generate_batch(self, conversations: Sequence[Sequence[Message]]) -> list[str]:
         replies = []
         for conversation in conversations:
+            # llama.cpp reuses the previous prompt's cache when prompts share a prefix (they all share the
+            # system prompt), which makes the answer depend on the previous question. Start clean each time.
+            self.llama.reset()
             result = self.llama.create_chat_completion(
                 messages=list(conversation),
                 max_tokens=self.settings.max_new_tokens,

@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -93,3 +94,28 @@ def test_finished_training_is_scored_without_retraining(tmp_path):
     assert FakeFineTuner.trained == []
     assert loaded == [adapter_dir]
     assert row["train_minutes"] == 7.5 and row["val_ROUGE-L"] == pytest.approx(100)
+
+
+def test_per_language_scores_can_choose_the_best_experiment(tmp_path):
+    """An experiment can be best overall but worse in Kinyarwanda; ``best`` can rank by one language."""
+    FakeFineTuner.trained = []
+    val = [make_example("Q1?", "Give beans.", lang="en"), make_example("Ikibazo?", "Muhe ibishyimbo.", lang="rw")]
+    dataset = QADataset(train=[make_example()], val=val, test=[])
+    runner = ExperimentRunner(dataset, tmp_path, fine_tuner_factory=lambda c: FakeFineTuner(c, tmp_path / "adapters"))
+    base = TrainingConfig(name="rank_16")
+    results = runner.run([base, base.variant("rank_4", lora_rank=4)]).set_index("experiment")
+
+    assert {"val_en_chrF", "val_rw_chrF", "val_rw_ROUGE-L"} <= set(results.columns)
+    assert results.loc["rank_16", "val_rw_chrF"] > results.loc["rank_4", "val_rw_chrF"]
+    assert runner.best("val_rw_chrF") == "rank_16"
+
+
+def test_loop_rate_is_recounted_for_runs_scored_before_it_existed(runner):
+    runner.run([TrainingConfig(name="rank_16")])
+    scores_path = runner.predictions_dir / "rank_16_val_scores.json"
+    old_scores = json.loads(scores_path.read_text())
+    for lang_scores in old_scores.values():
+        lang_scores.pop("repetition_loop_%")
+    scores_path.write_text(json.dumps(old_scores))
+
+    assert runner.results().set_index("experiment").loc["rank_16", "val_en_repetition_loop_%"] == 0

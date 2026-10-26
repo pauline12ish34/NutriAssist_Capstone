@@ -30,10 +30,17 @@ def load_tokenizer(name_or_path: str | Path):
     return tokenizer
 
 
+def attention_implementation(name_or_path: str | Path) -> str | None:
+    """Gemma 2 and 3 cap their attention scores ("soft-capping"), which only the eager attention code
+    computes exactly; Google recommends it for fine-tuning. Other models use the library default."""
+    return "eager" if "gemma" in str(name_or_path).lower() else None
+
+
 def load_causal_lm(name_or_path: str | Path, quantize_4bit: bool = True):
     """Load a causal LM, as 4-bit NF4 (QLoRA) on a GPU or in float32 on a CPU."""
+    attention = {"attn_implementation": impl} if (impl := attention_implementation(name_or_path)) else {}
     if not torch.cuda.is_available():
-        return AutoModelForCausalLM.from_pretrained(str(name_or_path), dtype=torch.float32)
+        return AutoModelForCausalLM.from_pretrained(str(name_or_path), dtype=torch.float32, **attention)
     dtype = compute_dtype()
     quantization = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -42,7 +49,7 @@ def load_causal_lm(name_or_path: str | Path, quantize_4bit: bool = True):
         bnb_4bit_compute_dtype=dtype,
     ) if quantize_4bit else None
     return AutoModelForCausalLM.from_pretrained(
-        str(name_or_path), quantization_config=quantization, device_map={"": 0}, dtype=dtype
+        str(name_or_path), quantization_config=quantization, device_map={"": 0}, dtype=dtype, **attention
     )
 
 
@@ -87,6 +94,7 @@ class TransformersChatModel(ChatModel):
                 max_new_tokens=self.settings.max_new_tokens,
                 do_sample=False,
                 repetition_penalty=self.settings.repetition_penalty,
+                no_repeat_ngram_size=self.settings.no_repeat_ngram_size,
                 pad_token_id=self.tokenizer.pad_token_id,
             )
             new_tokens = output[:, batch["input_ids"].shape[1]:]

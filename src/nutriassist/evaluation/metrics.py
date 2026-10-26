@@ -9,10 +9,14 @@
   recall and F1. The label comes from the reference rather than the question
   category because good everyday advice also refers ("weigh your child at the
   health centre every month").
+- Repetition loops: the answer repeats one phrase (a 4-word sequence appears 3+
+  times). Overlap metrics can rise while answers loop, so loops are counted apart.
 """
 
 from __future__ import annotations
 
+import re
+from collections import Counter
 from dataclasses import asdict, dataclass
 from typing import Sequence
 
@@ -20,6 +24,19 @@ from rouge_score import rouge_scorer
 from sacrebleu.metrics import BLEU, CHRF
 
 from ..safety.referral import ReferralDetector  # noqa: F401  (re-exported for evaluation users)
+
+_WORD = re.compile(r"\w+(?:'\w+)?", re.UNICODE)
+
+
+def words(text: str) -> list[str]:
+    return _WORD.findall(str(text).lower())
+
+
+def is_repetition_loop(answer: str, n: int = 4, times: int = 3) -> bool:
+    tokens = words(answer)
+    counts = Counter(tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1))
+    return bool(counts) and max(counts.values()) >= times
+
 
 @dataclass(frozen=True)
 class ClassificationScores:

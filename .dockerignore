@@ -11,3 +11,7 @@ docs
 data/raw
 data/QA_data
 data/processed/interim
+# ...except the reviewed answers, which the app returns for matching questions
+!data/QA_data/processed/qa_master.jsonl
+!data/QA_data/processed/extra_wordings.jsonl
+logs

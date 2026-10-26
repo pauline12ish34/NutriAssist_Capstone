@@ -21,10 +21,16 @@ class ChatResponse(BaseModel):
     language: Language = Field(description="Language detected in the question; the answer uses it too")
     safety_level: Literal["none", "medical", "urgent"]
     danger_signs: list[str] = Field(description="Danger signs or medical topics found in the question")
-    source: Literal["model", "model+referral_note", "safety_rule", "dose_blocked"] = Field(
-        description="Who wrote the answer: the model, the model plus a safety note, or the safety rules")
+    source: Literal["reviewed_answer", "no_reviewed_answer", "model", "model+referral_note", "safety_rule",
+                    "dose_blocked"] = Field(
+        description="Who wrote the answer: a reviewed stored answer, a fixed 'no checked answer' message (with "
+                    "suggestions), the model, the model plus a safety note, or the safety rules")
     model: str
     latency_ms: float
+    translated: bool = Field(False, description="The model answered in English and the answer was machine-translated")
+    matched_question: str | None = Field(None, description="For a reviewed answer: the stored question it matched")
+    suggestions: list[str] = Field(default_factory=list,
+                                   description="'Did you mean...?' reviewed questions; send one back as the question")
 
 
 class MealPlanRequest(BaseModel):

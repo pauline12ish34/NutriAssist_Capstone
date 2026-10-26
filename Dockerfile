@@ -23,6 +23,8 @@ COPY --chown=user app ./app
 COPY --chown=user .streamlit ./.streamlit
 COPY --chown=user data/reference ./data/reference
 COPY --chown=user data/processed/food_nutrients.csv ./data/processed/food_nutrients.csv
+COPY --chown=user data/QA_data/processed/qa_master.jsonl data/QA_data/processed/extra_wordings.jsonl \
+    ./data/QA_data/processed/
 COPY --chown=user scripts/start_container.sh ./scripts/start_container.sh
 RUN mkdir -p models
 

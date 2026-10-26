@@ -17,6 +17,7 @@ from ..prompts import Message
 class GenerationSettings:
     max_new_tokens: int = 320
     repetition_penalty: float = 1.05   # mild: stops loops in long Kinyarwanda answers without changing wording
+    no_repeat_ngram_size: int = 0      # >0 forbids repeating any n-token sequence (Transformers only); 0 = off
     batch_size: int = 8
 
 

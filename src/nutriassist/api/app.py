@@ -6,20 +6,25 @@ Docs:  http://localhost:8000/docs (Swagger UI)
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 
 from .. import __version__
-from ..assistant import InvalidQuestion, NutritionAssistant
+from ..assistant import AssistantReply, InvalidQuestion, NutritionAssistant, ReplySource
 from ..inference.base import ChatModel
+from ..knowledge import KnowledgeBase
 from ..planner import FoodCatalogue, MealPlanner, PlanRequest
 from .schemas import (ChatRequest, ChatResponse, ErrorResponse, FoodOut, HealthResponse, MealPlanRequest,
                       MealPlanResponse)
-from .settings import Settings, build_chat_model
+from ..translation import Translator
+from .settings import Settings, build_chat_model, build_knowledge_base, build_translator, reviewed_only_languages
 
 log = logging.getLogger("nutriassist.api")
 
@@ -27,27 +32,56 @@ log = logging.getLogger("nutriassist.api")
 class Services:
     """Everything the endpoints need, built once at start-up."""
 
-    def __init__(self, model: ChatModel, demo_mode: bool, catalogue: FoodCatalogue) -> None:
-        self.assistant = NutritionAssistant(model)
+    def __init__(self, model: ChatModel, demo_mode: bool, catalogue: FoodCatalogue,
+                 knowledge: KnowledgeBase | None = None, translator: Translator | None = None,
+                 reviewed_only: frozenset[str] = frozenset(), unanswered_log: Path | None = None) -> None:
+        self.assistant = NutritionAssistant(model, knowledge=knowledge, translator=translator,
+                                            reviewed_only=reviewed_only)
+        self.unanswered_log = unanswered_log
         self.demo_mode = demo_mode
         self.catalogue = catalogue
         self.planner = MealPlanner(catalogue)
         # llama.cpp keeps one context per model, so generate one answer at a time.
         self.model_lock = threading.Lock()
 
+    def record_unanswered(self, question: str, reply: AssistantReply) -> None:
+        """Keep questions with no reviewed answer, so reviewers can write answers for the common ones.
+
+        Only the question text, its language and the time are stored: no user or session data.
+        """
+        if self.unanswered_log is None or reply.source is not ReplySource.NO_MATCH:
+            return
+        try:
+            self.unanswered_log.parent.mkdir(parents=True, exist_ok=True)
+            row = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "language": reply.language,
+                   "question": question, "suggested": reply.suggestions}
+            with self.unanswered_log.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+        except OSError:  # a read-only disk must not break the chat
+            log.warning("Could not write %s", self.unanswered_log, exc_info=True)
+
 
 def create_app(settings: Settings | None = None, model: ChatModel | None = None,
-               catalogue: FoodCatalogue | None = None) -> FastAPI:
-    """Build the app. Tests pass a ``model`` and ``catalogue``; otherwise they come from ``settings``."""
+               catalogue: FoodCatalogue | None = None, knowledge: KnowledgeBase | None = None,
+               translator: Translator | None = None, reviewed_only: frozenset[str] = frozenset(),
+               unanswered_log: Path | None = None) -> FastAPI:
+    """Build the app. Tests pass a ``model`` and ``catalogue`` (and optionally the other services);
+    otherwise everything comes from ``settings``."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if model is not None:
-            chat_model, demo = model, False
+            chat_model, demo, kb, mt = model, False, knowledge, translator
+            only, unanswered = reviewed_only, unanswered_log
         else:
-            chat_model, demo = build_chat_model(settings or Settings.from_env())
-        log.info("Serving model %s (demo mode: %s)", chat_model.name, demo)
-        app.state.services = Services(chat_model, demo, catalogue or FoodCatalogue.load())
+            config = settings or Settings.from_env()
+            chat_model, demo = build_chat_model(config)
+            kb, mt = build_knowledge_base(config), build_translator(config)
+            only, unanswered = reviewed_only_languages(config, kb), config.unanswered_log
+        log.info("Serving model %s (demo mode: %s); reviewed answers: %s; reviewed-only languages: %s; translator: %s",
+                 chat_model.name, demo, len(kb) if kb else "off", ", ".join(sorted(only)) or "none",
+                 mt.name if mt else "off")
+        app.state.services = Services(chat_model, demo, catalogue or FoodCatalogue.load(), kb, mt, only, unanswered)
         yield
 
     app = FastAPI(
@@ -85,6 +119,7 @@ def create_app(settings: Settings | None = None, model: ChatModel | None = None,
         try:
             with s.model_lock:
                 reply = s.assistant.ask(body.question)
+            s.record_unanswered(body.question, reply)
         except InvalidQuestion as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         except Exception as error:  # the model failed: report it instead of returning a half answer
@@ -92,7 +127,8 @@ def create_app(settings: Settings | None = None, model: ChatModel | None = None,
             raise HTTPException(status_code=503, detail="The assistant is not available right now. Please try again.") from error
         return ChatResponse(answer=reply.answer, language=reply.language, safety_level=reply.safety_level,
                             danger_signs=reply.danger_signs, source=reply.source.value, model=reply.model_name,
-                            latency_ms=reply.latency_ms)
+                            latency_ms=reply.latency_ms, translated=reply.translated,
+                            matched_question=reply.matched_question, suggestions=reply.suggestions)
 
     @app.post("/meal-plan", response_model=MealPlanResponse, tags=["meal planner"],
               responses={422: {"model": ErrorResponse}})

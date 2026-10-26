@@ -185,6 +185,8 @@ class QLoRAFineTuner:
             lora_alpha=cfg.lora_alpha,
             lora_dropout=cfg.lora_dropout,
             target_modules="all-linear",   # attention (q, k, v, o) and MLP (gate, up, down) projections
+            # Gemma 3 4B also has an image encoder; the questions are text only, so adapt the language model only.
+            exclude_modules=r".*(vision_tower|multi_modal_projector).*",
             task_type="CAUSAL_LM",
         )
         model = get_peft_model(model, lora)

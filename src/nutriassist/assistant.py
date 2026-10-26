@@ -1,8 +1,24 @@
-"""The chat pipeline: language detection, safety rules, the language model and output checks.
+"""The chat pipeline: language detection, safety rules, reviewed answers, the language model and output checks.
 
     question ─► language ─► danger signs? ── urgent ──► fixed referral message (model skipped)
                                  │
-                                 └─ none / medical ──► model answer ─► dose check ─► referral check ─► reply
+                                 └─ none / medical ─► matches a reviewed question? ── yes ──► reviewed answer
+                                                                  │
+                                                                  no
+                                                                  │
+          reviewed-only language (Kinyarwanda in the app)? ── yes ──► "no checked answer" + "Did you mean...?"
+                                                  │
+                                                  no
+                                                  │
+                         Kinyarwanda and a translator? ── yes ──► translate to English ─► model ─► translate back
+                                                  │                                                   │
+                                                  no ──► model answer ────────────────────────────────┤
+                                                                                                      ▼
+                                                                         dose check ─► referral check ─► reply
+
+The fine-tuned model writes reliable English but not reliable Kinyarwanda, and machine translation was
+judged not good enough by a native speaker (``docs/kinyarwanda.md``). So the app shows Kinyarwanda only
+from reviewed answers; translation and the model's own Kinyarwanda remain available for evaluation.
 """
 
 from __future__ import annotations
@@ -11,14 +27,17 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Iterable
 
 from .inference.base import ChatModel
-from .language import LanguageDetector
+from .knowledge import KnowledgeBase, Match
+from .language import ENGLISH, KINYARWANDA, LanguageDetector
 from .prompts import SYSTEM_PROMPT, build_messages
 from .safety import messages
 from .safety.detector import DangerSignDetector, SafetyAssessment
 from .safety.referral import ReferralDetector
 from .safety.rules import SafetyLevel
+from .translation import Translator, strip_foreign_script, translate_text
 
 MAX_QUESTION_CHARS = 1000
 
@@ -31,6 +50,8 @@ _DOSE = re.compile(
 
 
 class ReplySource(str, Enum):
+    REVIEWED = "reviewed_answer"                 # a stored answer reviewed by a person: the model not called
+    NO_MATCH = "no_reviewed_answer"              # reviewed-only language, no match: fixed message and suggestions
     MODEL = "model"                              # the model's answer, unchanged
     MODEL_WITH_REFERRAL = "model+referral_note"  # the model's answer, plus a referral it had left out
     SAFETY_RULE = "safety_rule"                  # urgent danger sign: fixed message, model not called
@@ -46,6 +67,9 @@ class AssistantReply:
     source: ReplySource = ReplySource.MODEL
     model_name: str = ""
     latency_ms: float = 0.0
+    translated: bool = False                     # the model answered in English and the answer was machine-translated
+    matched_question: str | None = None          # for a reviewed answer: the stored question it matched
+    suggestions: list[str] = field(default_factory=list)  # "Did you mean...?" reviewed questions
 
 
 class InvalidQuestion(ValueError):
@@ -57,12 +81,19 @@ class NutritionAssistant:
 
     def __init__(self, model: ChatModel, detector: DangerSignDetector | None = None,
                  language: LanguageDetector | None = None, referrals: ReferralDetector | None = None,
-                 system_prompt: str = SYSTEM_PROMPT) -> None:
+                 system_prompt: str = SYSTEM_PROMPT, knowledge: KnowledgeBase | None = None,
+                 translator: Translator | None = None, reviewed_only: Iterable[str] = ()) -> None:
         self.model = model
         self.detector = detector or DangerSignDetector()
         self.language = language or LanguageDetector()
         self.referrals = referrals or ReferralDetector()
         self.system_prompt = system_prompt
+        self.knowledge = knowledge
+        self.translator = translator
+        # Languages answered only from reviewed answers: the model never writes them.
+        self.reviewed_only = frozenset(reviewed_only)
+        if self.reviewed_only and knowledge is None:
+            raise ValueError("reviewed_only needs a knowledge base of reviewed answers")
 
     def ask(self, question: str) -> AssistantReply:
         start = time.perf_counter()
@@ -71,12 +102,22 @@ class NutritionAssistant:
         safety = self.detector.assess(question)
         signs = safety.labels(lang)
 
+        match: Match | None = None
+        translated = False
+        suggestions: list[str] = []
         if safety.is_urgent:
             urgent_signs = [s.label_rw if lang == "rw" else s.label_en for s in safety.signs if s.level is SafetyLevel.URGENT]
             answer = messages.URGENT[lang].format(signs=messages.join_signs(urgent_signs, lang))
             source = ReplySource.SAFETY_RULE
+        elif self.knowledge is not None and (match := self.knowledge.find(question, lang)) is not None:
+            answer, source = match.pair.answer, ReplySource.REVIEWED
+        elif lang in self.reviewed_only:
+            suggestions = [m.pair.question for m in self.knowledge.suggest(question, lang)]
+            answer = (messages.NO_MATCH if suggestions else messages.NO_MATCH_NO_SUGGESTIONS)[lang]
+            source = ReplySource.NO_MATCH
         else:
-            answer = self.model.generate(build_messages(question, system_prompt=self.system_prompt)).strip()
+            translated = lang == KINYARWANDA and self.translator is not None
+            answer = self._translated_answer(question) if translated else self._model_answer(question)
             source = ReplySource.MODEL
             if safety.needs_health_worker:
                 answer, source = self._check_medical_answer(answer, safety, lang)
@@ -87,9 +128,29 @@ class NutritionAssistant:
             safety_level=safety.level.name.lower(),
             danger_signs=signs,
             source=source,
-            model_name=self.model.name if source is not ReplySource.SAFETY_RULE else "rules",
+            model_name=self._answered_by(source, translated),
             latency_ms=round(1000 * (time.perf_counter() - start), 1),
+            translated=translated,
+            matched_question=match.matched_question if match is not None else None,
+            suggestions=suggestions,
         )
+
+    def _model_answer(self, question: str) -> str:
+        # Qwen occasionally slips in a Chinese word ("colds (感冒)"); caregivers cannot read it.
+        answer = self.model.generate(build_messages(question, system_prompt=self.system_prompt))
+        return strip_foreign_script(answer).strip()
+
+    def _translated_answer(self, question: str) -> str:
+        english_question = translate_text(self.translator, question, KINYARWANDA, ENGLISH)
+        english_answer = self._model_answer(english_question)
+        return translate_text(self.translator, english_answer, ENGLISH, KINYARWANDA)
+
+    def _answered_by(self, source: ReplySource, translated: bool) -> str:
+        if source is ReplySource.SAFETY_RULE:
+            return "rules"
+        if source in (ReplySource.REVIEWED, ReplySource.NO_MATCH):
+            return "reviewed answers"
+        return f"{self.model.name} + {self.translator.name}" if translated else self.model.name
 
     @staticmethod
     def validate(question: str) -> str:

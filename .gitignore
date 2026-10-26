@@ -31,3 +31,6 @@ models/
 .DS_Store
 Thumbs.db
 ~$*.xlsx
+
+# Questions the app could not answer (may contain what caregivers typed)
+logs/

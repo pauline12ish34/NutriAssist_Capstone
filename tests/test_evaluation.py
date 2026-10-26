@@ -4,9 +4,18 @@ import pytest
 
 from conftest import make_example
 from nutriassist.evaluation.evaluator import EvaluationResult, Evaluator, compare
-from nutriassist.evaluation.metrics import ReferralDetector, TextMetrics, classification_scores
+from nutriassist.evaluation.metrics import ReferralDetector, TextMetrics, classification_scores, is_repetition_loop
 from nutriassist.inference.scripted import ScriptedChatModel
 from nutriassist.training.architecture import architecture_summary, lora_target_modules
+
+
+class TestRepetitionLoop:
+    def test_phrase_repeated_three_times_is_a_loop(self):
+        assert is_repetition_loop("amazi meza n'ibishyimbo, " * 4)
+
+    def test_phrase_repeated_twice_is_not(self):
+        assert not is_repetition_loop("Go to the health centre. If it gets worse, go to the health centre.")
+        assert not is_repetition_loop("")
 
 
 class TestClassificationScores:
@@ -90,6 +99,13 @@ class TestEvaluator:
         assert result.scores["all"]["danger_referral_rate_%"] == 0
         assert result.scores["rw"]["language_match_%"] == 0
         assert "perplexity" not in result.scores["all"]   # the scripted model cannot compute it
+
+    def test_repetition_loops_are_counted_per_language(self):
+        loop = "amazi meza n'ibishyimbo, " * 4
+        result = Evaluator().evaluate(ScriptedChatModel(lambda q: loop if q == "Yarya iki?" else "Give beans."),
+                                      self.examples)
+        assert result.scores["rw"]["repetition_loop_%"] == 100
+        assert result.scores["en"]["repetition_loop_%"] == 0
 
     def test_save_and_load_round_trip(self, tmp_path):
         result = Evaluator().evaluate(ScriptedChatModel(), self.examples)

@@ -123,8 +123,14 @@ Space's *Settings* and click **Factory rebuild**.
 | `NUTRIASSIST_HF_FILE` | `nutriassist-rw-q4_k_m.gguf` | file name in that repo (set `nutriassist-rw-q8_0.gguf` for the larger model) |
 | `NUTRIASSIST_BACKEND` | `auto` | `auto` (model if found, else demo), `llamacpp` (fail without a model), `demo` |
 | `NUTRIASSIST_MAX_NEW_TOKENS` | `320` | longest answer, in tokens; lower is faster |
+| `NUTRIASSIST_REPETITION_PENALTY` | `1.05` | discourages repeated phrases; set it to the value the notebook chose (section 5.3) |
 | `NUTRIASSIST_THREADS` | all cores | CPU threads for llama.cpp |
 | `NUTRIASSIST_API_URL` | `http://localhost:8000` | where the Streamlit app finds the API |
+| `NUTRIASSIST_KNOWLEDGE` | `data/QA_data/processed/qa_master.jsonl` | reviewed answers returned for matching questions; `off` to turn off |
+| `NUTRIASSIST_MATCH_THRESHOLD` | `0.75` | similarity needed to return a reviewed answer (chosen on the validation split) |
+| `NUTRIASSIST_KINYARWANDA` | `reviewed` | how a Kinyarwanda question with no reviewed answer is handled. `reviewed`: a fixed "no checked answer" message with up to three "Did you mean...?" reviewed questions (the model never writes Kinyarwanda). `translate`: answered in English and machine-translated with NLLB-200 (needs the `translate` extra and a 2.4 GB download; judged not good enough by a native speaker). `model`: the model writes Kinyarwanda itself (unreliable) |
+| `NUTRIASSIST_UNANSWERED_LOG` | `logs/unanswered.jsonl` | Kinyarwanda questions with no reviewed answer (question text, language and time only), so reviewers can write answers for the common ones; `off` to turn off |
+| `NUTRIASSIST_EMBEDDINGS` | `off` | `on` adds LaBSE embeddings to matching (needs the `embeddings` extra; measured no better) |
 
 ---
 
@@ -136,5 +142,6 @@ Space's *Settings* and click **Factory rebuild**.
 | Sidebar says *Demo mode* | No model file. Check `models/` or `NUTRIASSIST_HF_REPO`; the API log says which model it loaded. |
 | `pip` tries to compile llama-cpp-python | Add `--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu`, or install the C++ build tools. |
 | Answers are slow | Normal on a CPU: a long answer takes 20–60 s on 2 cores. Lower `NUTRIASSIST_MAX_NEW_TOKENS`, or use a machine with more cores. |
+| A Kinyarwanda question gets "no checked answer" | Expected when no reviewed question is close enough. Tap a suggestion, or add the question to the reviewed pairs (see `docs/kinyarwanda.md`, "How to make Kinyarwanda better over time"). The question is kept in `logs/unanswered.jsonl`. |
 | Space build fails | Read the *Logs* tab; most failures are a typo in the variable names above. |
 | Space sleeps | Free Spaces pause after 48 hours without visitors; the first visit wakes them (about a minute). |

@@ -1,5 +1,7 @@
 """Integration tests: HTTP requests through FastAPI, the safety layer, the planner and a scripted model."""
 
+import json
+
 import pytest
 
 pytest.importorskip("fastapi")
@@ -126,3 +128,37 @@ def test_model_file_discovery_prefers_the_smaller_export(tmp_path):
     assert find_model_file((q4, q8)) == q8                 # only the 8-bit file was downloaded
     q4.touch()
     assert find_model_file((q4, q8)) == q4
+
+
+class TestReviewedKinyarwanda:
+    @pytest.fixture
+    def client_and_log(self, model, tmp_path):
+        from nutriassist.knowledge import KnowledgeBase
+
+        log = tmp_path / "unanswered.jsonl"
+        app = create_app(model=model, knowledge=KnowledgeBase.load(), reviewed_only=frozenset({"rw"}), unanswered_log=log)
+        with TestClient(app) as test_client:
+            yield test_client, log
+
+    def test_reviewed_answer_for_a_known_question(self, client_and_log, model):
+        client, log = client_and_log
+        body = client.post("/chat", json={"question": "Nagaburira nte umwana urwaye?"}).json()
+        assert body["source"] == "reviewed_answer" and body["suggestions"] == [] and model.calls == []
+        assert not log.exists()
+
+    def test_unknown_question_returns_suggestions_and_is_logged(self, client_and_log, model):
+        client, log = client_and_log
+        body = client.post("/chat", json={"question": "Nakongera nte ubutare mu biryo by'umwana?"}).json()
+        assert body["source"] == "no_reviewed_answer" and body["suggestions"] and model.calls == []
+        logged = json.loads(log.read_text(encoding="utf-8").splitlines()[0])
+        assert logged["question"] == "Nakongera nte ubutare mu biryo by'umwana?" and logged["language"] == "rw"
+        assert set(logged) == {"time", "language", "question", "suggested"}
+
+
+def test_kinyarwanda_mode_must_be_known():
+    from nutriassist.api.settings import reviewed_only_languages
+
+    with pytest.raises(ValueError):
+        reviewed_only_languages(Settings(kinyarwanda="google"), None)
+    assert reviewed_only_languages(Settings(), None) == frozenset()          # no reviewed answers: model answers
+    assert reviewed_only_languages(Settings(kinyarwanda="model"), object()) == frozenset()

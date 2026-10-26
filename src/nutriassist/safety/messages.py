@@ -41,6 +41,22 @@ DOSE_BLOCKED = {
 }
 
 
+# NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
+# Shown when a question in a reviewed-only language (Kinyarwanda in the app) matches no reviewed answer.
+NO_MATCH = {
+    "en": ("I don't have a checked answer to this question yet. Did you mean one of the questions below? "
+           "If not, please ask your community health worker or visit the health centre."),
+    "rw": ("Nta gisubizo cyagenzuwe mfite kuri iki kibazo. Wenda washakaga kubaza kimwe mu bibazo "
+           "bikurikira? Niba atari byo, baza umujyanama w'ubuzima cyangwa ujye ku kigo nderabuzima."),
+}
+NO_MATCH_NO_SUGGESTIONS = {
+    "en": ("I don't have a checked answer to this question yet. Please ask your community health worker or "
+           "visit the health centre. You can also try asking in other words."),
+    "rw": ("Nta gisubizo cyagenzuwe mfite kuri iki kibazo. Baza umujyanama w'ubuzima cyangwa ujye ku kigo "
+           "nderabuzima. Ushobora no kongera kubaza ukoresheje andi magambo."),
+}
+
+
 def join_signs(labels: list[str], language: str) -> str:
     if len(labels) <= 1:
         return "".join(labels)

@@ -16,6 +16,7 @@ from typing import Callable, Protocol, Sequence
 import pandas as pd
 
 from ..evaluation.evaluator import Evaluator
+from ..evaluation.metrics import is_repetition_loop
 from ..inference.base import ChatModel
 from .config import TRAINING_SUMMARY_FILE, TrainingConfig
 from .dataset import QADataset
@@ -56,7 +57,31 @@ class ExperimentRunner:
         self.adapter_loader = adapter_loader or self._load_adapter
 
     def results(self) -> pd.DataFrame:
-        return pd.read_csv(self.results_path) if self.results_path.exists() else pd.DataFrame()
+        """One row per finished experiment, with validation scores overall and per language.
+
+        The per-language columns (``val_rw_chrF``, ``val_en_ROUGE-L``, ...) are read from the saved
+        validation scores, so they also exist for experiments recorded before they were added.
+        """
+        if not self.results_path.exists():
+            return pd.DataFrame()
+        results = pd.read_csv(self.results_path)
+        by_language = [self._language_scores(name) for name in results["experiment"]]
+        extra = pd.DataFrame(by_language, index=results.index)
+        return pd.concat([results.drop(columns=[c for c in extra.columns if c in results]), extra], axis=1)
+
+    def _language_scores(self, name: str) -> dict:
+        path = self.predictions_dir / f"{name}_val_scores.json"
+        if not path.exists():
+            return {}
+        scores = json.loads(path.read_text(encoding="utf-8"))
+        predictions = self.predictions_dir / f"{name}_val_predictions.jsonl"
+        if predictions.exists():  # loops were counted after the first runs: recount from their saved answers
+            answers = pd.read_json(predictions, orient="records", lines=True)
+            for lang, group in answers.groupby("lang"):
+                scores.setdefault(lang, {}).setdefault(
+                    "repetition_loop_%", 100 * float(group["prediction"].map(is_repetition_loop).mean()))
+        return {f"val_{lang}_{metric}": round(value, 3)
+                for lang in ("en", "rw") for metric, value in scores.get(lang, {}).items()}
 
     def is_finished(self, config: TrainingConfig) -> bool:
         results = self.results()
@@ -92,7 +117,10 @@ class ExperimentRunner:
         return {**summary, **{f"val_{k}": round(v, 3) for k, v in validation.scores["all"].items()}}
 
     def best(self, metric: str = "val_ROUGE-L", tie_breaker: str = "val_loss") -> str:
-        """Name of the experiment with the highest ``metric``; the lowest ``tie_breaker`` breaks ties."""
+        """Name of the experiment with the highest ``metric``; the lowest ``tie_breaker`` breaks ties.
+
+        ``metric`` can be a per-language column such as ``val_rw_chrF``.
+        """
         results = self.results()
         if results.empty:
             raise ValueError("No finished experiments yet")
