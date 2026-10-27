@@ -53,6 +53,10 @@ translate = [
 embeddings = [
     "sentence-transformers>=3.0",
 ]
+# Gemini drafts of extra Kinyarwanda training text (python -m nutriassist.qa_data.gemini_drafts).
+gemini = [
+    "google-genai>=1.0",
+]
 # The Streamlit frontend.
 app = [
     "streamlit>=1.45",

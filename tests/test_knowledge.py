@@ -240,3 +240,17 @@ def test_approved_extra_wordings_are_indexed_but_never_a_held_out_paraphrase(tmp
     assert "Ikibazo gishya cyanditswe ukundi?" in deployed[test_pair["id"]]
     assert "Ikibazo gishya cyanditswe ukundi?" in evaluation[test_pair["id"]]
     assert test_pair["paraphrases"][0] not in evaluation[test_pair["id"]]
+
+
+def test_approved_gemini_question_wordings_are_matched(tmp_path):
+    from nutriassist.knowledge import DEFAULT_THRESHOLD
+
+    master = [json.loads(line) for line in open("data/QA_data/processed/qa_master.jsonl", encoding="utf-8")]
+    pair = next(r for r in master if r["split"] == "train" and r["lang"] == "rw")
+    augmented = tmp_path / "augmented.jsonl"
+    wording = "Ese mbere y'amezi atandatu umwana yanywa utuzi duke?"
+    augmented.write_text(json.dumps({"id": pair["id"], "questions": [wording], "answers": ["Igisubizo."]}),
+                         encoding="utf-8")
+    assert wording in dict((p.id, w) for p, w in load_pairs(augmented=augmented))[pair["id"]]
+    knowledge = KnowledgeBase(load_pairs(augmented=augmented), threshold=DEFAULT_THRESHOLD)
+    assert knowledge.find(wording, "rw").pair.id == pair["id"]

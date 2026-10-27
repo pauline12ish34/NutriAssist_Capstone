@@ -17,8 +17,9 @@ mean...?" suggestions (:meth:`KnowledgeBase.suggest`), and the caregiver picks o
 chosen on the validation split by ``scripts/evaluate_pipeline.py``.
 
 Besides each pair's question and paraphrases, the index holds extra wordings approved in the wording
-review (``nutriassist.qa_data.wording_review``). They make matching recognise more ways of asking;
-they are not used for training, so the training data and its evaluation do not change.
+review (``nutriassist.qa_data.wording_review``) and the Gemini-drafted question wordings approved in
+``nutriassist.qa_data.gemini_drafts``. They make matching recognise more ways of asking. The Gemini
+wordings exist only for training-split pairs, so the held-out questions the evaluation asks stay unseen.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from .terms import FOOD_NAMES, KeyTerms
 
 QA_MASTER = Path("data/QA_data/processed/qa_master.jsonl")
 EXTRA_WORDINGS = Path("data/QA_data/processed/extra_wordings.jsonl")   # approved in the wording review
+AUGMENTED = Path("data/QA_data/processed/augmented_rw.jsonl")           # approved Gemini drafts
 DEFAULT_THRESHOLD = 0.75     # chosen on the validation split by scripts/evaluate_pipeline.py
 EMBEDDING_MODEL = "sentence-transformers/LaBSE"
 
@@ -75,20 +77,24 @@ class SentenceEmbedder:
 
 
 def load_extra_wordings(path: str | Path | None = EXTRA_WORDINGS) -> dict[str, list[str]]:
-    """Approved extra wordings per pair id (none when the file does not exist yet)."""
+    """Approved extra wordings per pair id (none when the file does not exist yet).
+
+    Reads the wording review's rows (``wordings``) and the Gemini review's rows (``questions``).
+    """
     if path is None or not Path(path).exists():
         return {}
     wordings: dict[str, list[str]] = {}
     with Path(path).open(encoding="utf-8") as handle:
         for line in handle:
             row = json.loads(line)
-            wordings.setdefault(row["id"], []).extend(row["wordings"])
+            wordings.setdefault(row["id"], []).extend(row.get("wordings", row.get("questions", [])))
     return wordings
 
 
 def load_pairs(path: str | Path = QA_MASTER, splits: Iterable[str] | None = None,
                paraphrase_splits: Iterable[str] | None = None,
-               extra_wordings: str | Path | None = EXTRA_WORDINGS) -> list[tuple[ReviewedPair, list[str]]]:
+               extra_wordings: str | Path | None = EXTRA_WORDINGS,
+               augmented: str | Path | None = AUGMENTED) -> list[tuple[ReviewedPair, list[str]]]:
     """Reviewed pairs with the wordings to index for each.
 
     ``splits`` limits which pairs are loaded (all by default). Paraphrases are indexed only for pairs
@@ -99,6 +105,8 @@ def load_pairs(path: str | Path = QA_MASTER, splits: Iterable[str] | None = None
     splits = set(splits) if splits is not None else None
     paraphrase_splits = set(paraphrase_splits) if paraphrase_splits is not None else None
     extra = load_extra_wordings(extra_wordings)
+    for pair_id, wordings in load_extra_wordings(augmented).items():
+        extra.setdefault(pair_id, []).extend(wordings)
     pairs = []
     with Path(path).open(encoding="utf-8") as handle:
         for line in handle:

@@ -148,3 +148,13 @@ Coverage grows with every reviewed wording and pair; quality stays at the level 
    from the text, before the usual fine-tune (experiment 10, `src/nutriassist/training/pretrain.py`).
    Section 5.3 also compares decoding settings that discourage repetition loops. Whatever the scores,
    the model's Kinyarwanda must pass the same native-speaker review before the app shows it.
+4. **Give the fine-tune more reviewed Kinyarwanda.** `python -m nutriassist.qa_data.gemini_drafts draft`
+   asks Gemini (Google AI Studio key in `.env`) for three new wordings of each reviewed Kinyarwanda
+   training question and one reworded answer with the same facts
+   (`data/QA_data/curated/gemini_drafts_rw.jsonl`). `export` writes
+   `data/QA_data/review/gemini_drafts_review.xlsx`, where the `check` column flags changed numbers or
+   *gusekura*; the native speaker marks each draft `approved`, `corrected` or `rejected`, and `apply`
+   writes the accepted ones to `data/QA_data/processed/augmented_rw.jsonl`. Rebuilding the dataset
+   then adds them to the training split only, so validation and test stay the same and scores remain
+   comparable. Approved question wordings also go into the app's matching, so it recognises more
+   ways of asking. Gemini only drafts: nothing it writes is trained on or shown without review.
