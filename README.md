@@ -297,6 +297,7 @@ Step-by-step instructions for local, Docker and Spaces deployment are in **[docs
 - [QA dataset design](docs/qa_dataset.md) and [dataset report](data/QA_data/processed/qa_report.md)
 - [Why Kinyarwanda answers come from reviewed pairs](docs/kinyarwanda.md)
 - [Performance and compatibility](docs/performance.md)
+- [Usability test: tasks, SUS form and scoring](docs/usability_test.md)
 - [Deployment guide](docs/deployment.md)
 
 ## Author
