@@ -238,7 +238,11 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
             header_md = gr.Markdown(header("en"))
             language = gr.Radio(LANGUAGES, value="en", label=t("language", "en"))
 
-        with gr.Tabs():
+        with gr.Column(visible=True) as disclaimer_box:   # shown once per visit, before the app can be used
+            disclaimer = gr.Markdown(f"## ⚠️ {t('disclaimer_title', 'en')}\n\n{t('disclaimer', 'en')}")
+            accept = gr.Button(t("disclaimer_accept", "en"), variant="primary")
+
+        with gr.Tabs(visible=False) as tabs:
             with gr.Tab(f"💬 {t('page_chat', 'en')}") as chat_tab:
                 chat_intro = gr.Markdown(t("chat_intro", "en"))
                 chatbot = gr.Chatbot(height=480, show_label=False)
@@ -263,6 +267,7 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
             with gr.Tab(f"ℹ️ {t('page_about', 'en')}") as about_tab:
                 about = gr.Markdown(ABOUT["en"])
 
+        accept.click(lambda: (gr.update(visible=False), gr.update(visible=True)), None, [disclaimer_box, tabs])
         chat_outputs = [chatbot, question, *buttons, examples_title]
         question.submit(ask, [question, chatbot, language], chat_outputs)
         for button in buttons:
@@ -274,6 +279,8 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
         def switch_language(lang: str):
             return (
                 header(lang), gr.update(label=t("language", lang)),
+                f"## ⚠️ {t('disclaimer_title', lang)}\n\n{t('disclaimer', lang)}",
+                gr.update(value=t("disclaimer_accept", lang)),
                 gr.update(label=f"💬 {t('page_chat', lang)}"), t("chat_intro", lang),
                 gr.update(placeholder=t("chat_placeholder", lang)), f"**{t('examples', lang)}**",
                 *question_buttons(EXAMPLES[lang]), gr.update(value=f"🗑️ {t('clear_chat', lang)}"),
@@ -287,7 +294,7 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
             )
 
         language.change(switch_language, language, [
-            header_md, language, chat_tab, chat_intro, question, examples_title, *buttons, clear,
+            header_md, language, disclaimer, accept, chat_tab, chat_intro, question, examples_title, *buttons, clear,
             planner_tab, planner_intro, age, breastfed, days, available, excluded, make, download,
             about_tab, about,
         ])

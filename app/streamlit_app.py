@@ -47,6 +47,14 @@ with st.sidebar:
             st.warning(t("demo_mode"))
     st.info(f"🚑 {t('emergency')}")
 
+if not st.session_state.get("disclaimer_accepted"):
+    st.title(f"⚠️ {t('disclaimer_title')}")
+    st.markdown(t("disclaimer"))
+    if st.button(t("disclaimer_accept"), type="primary", use_container_width=True):
+        st.session_state.disclaimer_accepted = True
+        st.rerun()
+    st.stop()
+
 navigation = st.navigation([
     st.Page("views/chat.py", title=t("page_chat"), icon="💬", default=True),
     st.Page("views/meal_planner.py", title=t("page_planner"), icon="🍲"),

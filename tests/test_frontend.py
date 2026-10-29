@@ -49,9 +49,19 @@ def api_server():
 
 
 def start_app() -> AppTest:
+    """The app, past the disclaimer shown on first use."""
     at = AppTest.from_file(APP, default_timeout=30).run()
     assert not at.exception
+    at.button[0].click().run()
     return at
+
+
+def test_disclaimer_comes_before_the_chat():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert at.title[0].value == "⚠️ Before you start"
+    assert "912" in at.markdown[0].value and not at.chat_input
+    at.button[0].click().run()
+    assert at.title[0].value == "💬 Ask a question"
 
 
 def test_sidebar_shows_the_server_is_online():

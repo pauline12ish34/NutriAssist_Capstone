@@ -22,6 +22,29 @@ TEXT: dict[str, dict[str, str]] = {
         "en": "Emergency? Go to the nearest health centre or call 912.",
         "rw": "Ibyihutirwa? Jya ku kigo nderabuzima kiri hafi cyangwa uhamagare 912.",
     },
+    # Shown once, before the app can be used (the proposal's ethics section).
+    # NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
+    "disclaimer_title": {"en": "Before you start", "rw": "Mbere yo gutangira"},
+    "disclaimer": {
+        "en": (
+            "- NutriAssist-RW is a **student project**. It gives general nutrition advice; it is **not a doctor "
+            "or a health worker**.\n"
+            "- Answers written by AI can contain **mistakes**. Check important decisions with your health worker.\n"
+            "- It does **not diagnose illness or give medicine doses**.\n"
+            "- In an **emergency**, go to the nearest health centre or call **912**.\n"
+            "- Do not type your name or other personal details. Questions are not saved with personal information."
+        ),
+        "rw": (
+            "- NutriAssist-RW ni **umushinga w'umunyeshuri**. Itanga inama rusange ku mirire; **si muganga cyangwa "
+            "umukozi w'ubuzima**.\n"
+            "- Ibisubizo byanditswe na AI bishobora kugira **amakosa**. Ku byemezo bikomeye, banza ubaze umujyanama "
+            "w'ubuzima.\n"
+            "- **Ntisuzuma indwara kandi ntitanga ingano y'imiti**.\n"
+            "- Mu **bihe byihutirwa**, jya ku kigo nderabuzima kiri hafi cyangwa uhamagare **912**.\n"
+            "- Ntwandike izina ryawe cyangwa andi makuru akwerekeyeho. Ibibazo ntibibikwa hamwe n'amakuru yawe bwite."
+        ),
+    },
+    "disclaimer_accept": {"en": "I understand, continue", "rw": "Ndabyumvise, komeza"},
     # Chat
     "chat_intro": {
         "en": "Ask about breastfeeding, feeding your child from 6 months to 5 years, nutrition in pregnancy, or local foods. You can write in English or Kinyarwanda.",
