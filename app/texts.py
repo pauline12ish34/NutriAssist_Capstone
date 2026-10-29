@@ -33,14 +33,16 @@ TEXT: dict[str, dict[str, str]] = {
     "clear_chat": {"en": "Clear conversation", "rw": "Siba ibiganiro"},
     "urgent_banner": {"en": "Danger sign detected", "rw": "Habonetse ikimenyetso cy'akaga"},
     "medical_banner": {"en": "This needs a health worker", "rw": "Ibi bikeneye umukozi w'ubuzima"},
-    "answered_by_rules": {"en": "Answered by the safety rules", "rw": "Cyasubijwe n'amategeko y'umutekano"},
     # NEEDS REVIEW: the two Kinyarwanda texts below were drafted by Claude and not yet checked by a native speaker.
-    "answered_by_reviewed": {"en": "Answer reviewed by a person", "rw": "Igisubizo cyagenzuwe n'umuntu"},
+    # Shown only under answers the model wrote; safety-rule and reviewed answers carry no label.
+    "ai_warning": {
+        "en": "Written by AI: may contain mistakes. Check with your health worker.",
+        "rw": "Cyanditswe na AI: gishobora kugira amakosa. Baza umujyanama w'ubuzima.",
+    },
     "machine_translated": {
         "en": "This answer was translated by a computer and may contain mistakes. For important decisions, ask your community health worker.",
         "rw": "Iki gisubizo cyahinduwe na mudasobwa, gishobora kugira amakosa. Ku byemezo bikomeye, baza umujyanama w'ubuzima.",
     },
-    "seconds": {"en": "s", "rw": "s"},
     # Meal planner
     "planner_intro": {
         "en": "Get a meal plan from local foods, sized for your child's age. Portions are in tablespoons and grams.",

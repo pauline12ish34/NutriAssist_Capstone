@@ -48,6 +48,7 @@ DEFAULT_ADAPTER_REPO = "pauline-ish/NutritionAssistant_RW"
 LANGUAGES = [("English", "en"), ("Kinyarwanda", "rw")]
 NUTRIENTS = ("energy_kcal", "protein_g", "iron_mg", "calcium_mg")
 N_QUESTION_BUTTONS = 4
+AI_WRITTEN = (ReplySource.MODEL, ReplySource.MODEL_WITH_REFERRAL)   # answers that get the AI warning
 MODEL_ERROR = {
     "en": "The assistant is not available right now. Please try again in a minute.",
     "rw": "Porogaramu ntiri gukora ubu. Ongera ugerageze nyuma y'umunota umwe.",
@@ -148,9 +149,8 @@ def format_reply(reply: AssistantReply) -> str:
         parts.append(f"_{t('machine_translated', lang)}_")
     if reply.suggestions:
         parts.append("\n".join(f"- {suggestion}" for suggestion in reply.suggestions))
-    who = {ReplySource.SAFETY_RULE: t("answered_by_rules", lang), ReplySource.REVIEWED: t("answered_by_reviewed", lang),
-           ReplySource.NO_MATCH: t("answered_by_reviewed", lang)}.get(reply.source, reply.model_name)
-    parts.append(f"_{who} · {reply.latency_ms / 1000:.1f} {t('seconds', lang)}_")
+    if reply.source in AI_WRITTEN:
+        parts.append(f"_🤖 {t('ai_warning', lang)}_")
     return "\n\n".join(parts)
 
 

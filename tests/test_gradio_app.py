@@ -19,20 +19,25 @@ def services():
     return gradio_app.Services.create(ScriptedChatModel(lambda q: "Give mashed beans with avocado."))
 
 
-def test_urgent_reply_shows_the_banner_and_who_answered(services):
+def test_urgent_reply_shows_the_banner_and_no_ai_warning(services):
     text = gradio_app.format_reply(services.assistant.ask("My child is having a seizure"))
     assert text.startswith("🚨 **Danger sign detected**")
-    assert "912" in text and "Answered by the safety rules" in text
+    assert "912" in text and "Written by AI" not in text
 
 
 def test_honey_question_is_answered_by_the_rules(services):
     reply = services.assistant.ask("Can I give honey to my 5 month old?")
-    assert "12 months" in gradio_app.format_reply(reply) and "safety rules" in gradio_app.format_reply(reply)
+    assert "12 months" in gradio_app.format_reply(reply) and "Written by AI" not in gradio_app.format_reply(reply)
 
 
-def test_model_reply_names_the_model(services):
+def test_reviewed_answer_has_no_label(services):
+    reply = services.assistant.ask("Nshobora guha ubunyobwa umwana wanjye muto?")
+    assert gradio_app.format_reply(reply) == reply.answer
+
+
+def test_model_reply_ends_with_the_ai_warning(services):
     text = gradio_app.format_reply(services.assistant.ask("What can a 9-month-old eat for supper?"))
-    assert text.startswith("Give mashed beans") and services.assistant.model.name in text
+    assert text.startswith("Give mashed beans") and text.endswith("Check with your health worker._")
 
 
 def test_unanswered_kinyarwanda_question_lists_suggestions(services):
