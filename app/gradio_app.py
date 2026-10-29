@@ -109,7 +109,8 @@ def load_model() -> ChatModel:
         folder = os.environ.get("NUTRIASSIST_ADAPTER_FOLDER", "adapter")
         adapter = Path(snapshot_download(adapter_repo, allow_patterns=[f"{folder}/*"])) / folder
         # Merging once at start-up makes every answer faster than running the adapter beside the model.
-        model = PeftModel.from_pretrained(model, str(adapter)).merge_and_unload()
+        # On ZeroGPU no GPU is attached at start-up although CUDA reports one, so load the adapter on the CPU.
+        model = PeftModel.from_pretrained(model, str(adapter), torch_device="cpu").merge_and_unload()
         tokenizer_source, name = adapter, f"{base_model} + {adapter_repo}"
     if gpu:
         model.to("cuda")
