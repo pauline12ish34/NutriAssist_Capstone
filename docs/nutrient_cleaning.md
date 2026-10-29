@@ -1,6 +1,6 @@
 # Nutrient cleaning: serving basis, units and column shift
 
-**Source:** `data/raw/food_dataset.xlsx` (Kaggle Food Nutrition Dataset, 2,395 foods). The raw file is never modified.
+**Source:** `data/raw/food_dataset.xlsx`, a food composition workbook provided by a nutritionist in Kimironko, Kigali (5 sheets, 2,395 foods; its layout and values match the public Kaggle Food Nutrition Dataset). The raw file is never modified.
 **Code:** `src/nutriassist/food_data/clean_nutrients.py`, called by `src/nutriassist/food_data/build_foods.py`.
 **Generated counts:** `data/processed/cleaning_report.md`.
 
