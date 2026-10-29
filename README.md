@@ -95,6 +95,17 @@ from notebook section 6. Model: Qwen2.5-1.5B, experiment `exp3_lr_5e-4` (the mod
 | Referral F1 (medical questions sent to a health worker) | 37.5% | 63.3% | +69% |
 | Referral recall | 28.1% | 59.4% | +111% |
 | Language match (answer in the question's language) | 84.6% | 98.7% | +17% |
+| Numeric accuracy (reference numbers given within ±10%; 47 answers with numbers) | 14.9% | 26.0% | +11.0 points |
+
+Numeric accuracy (`python scripts/numeric_accuracy.py`) is the proposal's main metric: ages, amounts,
+meals a day and MUAC cut-offs in the answer, compared with the reference. It rose by 11 points
+(English +15, Kinyarwanda +6), short of the proposal's +20 target, and the share of invented numbers did
+not fall. This is one reason the numbers that matter most come from code, not the model: meal-plan
+amounts from the planner, danger signs from the rules.
+
+A blinded expert rating (correctness, safety, local relevance, 1–5) of 40 answers, base vs fine-tuned
+on 20 English test questions, is prepared with `python -m nutriassist.evaluation.expert_rating build`
+and scored with `... expert_rating analyse <filled sheet>`.
 
 _Gemma-3-4B (`exp9`, the model of the live app): results to be added from the notebook._
 

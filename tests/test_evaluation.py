@@ -4,7 +4,8 @@ import pytest
 
 from conftest import make_example
 from nutriassist.evaluation.evaluator import EvaluationResult, Evaluator, compare
-from nutriassist.evaluation.metrics import ReferralDetector, TextMetrics, classification_scores, is_repetition_loop
+from nutriassist.evaluation.metrics import (ReferralDetector, TextMetrics, classification_scores, is_repetition_loop,
+                                            numbers, numeric_scores)
 from nutriassist.inference.scripted import ScriptedChatModel
 from nutriassist.training.architecture import architecture_summary, lora_target_modules
 
@@ -121,6 +122,32 @@ class TestEvaluator:
         table = compare(base, tuned).set_index("metric")
         assert table.loc["perplexity", "improvement_%"] == pytest.approx(50)
         assert table.loc["ROUGE-L", "improvement_%"] == pytest.approx(50)
+
+
+class TestNumericAccuracy:
+    @pytest.mark.parametrize("text, expected", [
+        ("Give 2 to 3 meals a day from 6-8 months.", [2, 3, 6, 8]),
+        ("MUAC below 11.5 cm is severe.", [11.5]),
+        ("Ibiyiko 2½ cyangwa 1,5 kg.", [2.5, 1.5]),
+        ("About 1,000 kcal a day.", [1000]),
+        ("From six months.", [6]),
+        ("1. Breastfeed\n2. Give porridge", []),   # list numbering is not a fact
+    ])
+    def test_numbers_are_read(self, text, expected):
+        assert sorted(numbers(text)) == sorted(expected)
+
+    def test_numbers_within_ten_percent_count_as_correct(self):
+        scores = numeric_scores(["Give 2 to 3 meals; MUAC under 11.5 cm."], ["Two or three meals; MUAC under 11 cm."])
+        assert scores.accuracy == 1 and scores.precision == 1
+
+    def test_missing_and_invented_numbers_lower_the_scores(self):
+        scores = numeric_scores(["From 6 months, 3 meals a day."], ["From 4 months, 3 meals a day and 5 snacks."])
+        assert scores.accuracy == 0.5           # 3 given, 6 missing
+        assert scores.precision == pytest.approx(1 / 3)   # 4 and 5 are not in the reference
+
+    def test_references_without_numbers_are_not_scored(self):
+        scores = numeric_scores(["Keep breastfeeding.", "Give 2 meals."], ["Give 7 meals.", "Give 2 meals."])
+        assert scores.answers_scored == 1 and scores.accuracy == 1
 
 
 def test_architecture_summary_reads_config_fields():

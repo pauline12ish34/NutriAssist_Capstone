@@ -11,6 +11,11 @@
   health centre every month").
 - Repetition loops: the answer repeats one phrase (a 4-word sequence appears 3+
   times). Overlap metrics can rise while answers loop, so loops are counted apart.
+- Numeric accuracy (the proposal's main metric): the share of the numbers in the
+  reference answer (ages in months, amounts, times a day, MUAC cut-offs...) that
+  the answer gives within ±10%. Its precision counterpart, the share of the
+  answer's numbers found in the reference, catches invented numbers. Only
+  answers whose reference contains a number are scored.
 """
 
 from __future__ import annotations
@@ -26,6 +31,58 @@ from sacrebleu.metrics import BLEU, CHRF
 from ..safety.referral import ReferralDetector  # noqa: F401  (re-exported for evaluation users)
 
 _WORD = re.compile(r"\w+(?:'\w+)?", re.UNICODE)
+
+
+# A number not glued to letters ("11.5", "1,5", "6"); "1,000" is a thousand, other commas are decimals.
+_NUMBER = re.compile(r"(?<![\w.,])(\d+(?:,\d{3})+|\d+(?:[.,]\d+)?)(?![\w])")
+_LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)   # "1. Give porridge" numbers a list item, not a fact
+_NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+                 "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "half": 0.5}
+_NUMBER_WORD = re.compile(r"\b(" + "|".join(_NUMBER_WORDS) + r")\b", re.IGNORECASE)
+
+
+def numbers(text: str) -> list[float]:
+    """The numbers stated in a text, in digits or as English words up to twelve."""
+    text = _LIST_MARKER.sub("", str(text))
+    text = re.sub(r"(\d)½", r"\1.5", text).replace("½", "0.5")   # "ibiyiko 2½"
+    found = []
+    for match in _NUMBER.findall(text):
+        found.append(float(match.replace(",", "") if re.fullmatch(r"\d+(?:,\d{3})+", match)
+                           else match.replace(",", ".")))
+    found += [float(_NUMBER_WORDS[word.lower()]) for word in _NUMBER_WORD.findall(text)]
+    return found
+
+
+def _close(value: float, candidates: Sequence[float], tolerance: float) -> bool:
+    return any(abs(value - c) <= tolerance * abs(c) for c in candidates)
+
+
+@dataclass(frozen=True)
+class NumericScores:
+    accuracy: float      # reference numbers the answer gives within the tolerance
+    precision: float     # answer numbers that appear in the reference
+    answers_scored: int  # answers whose reference contains a number
+
+    def as_percentages(self) -> dict[str, float]:
+        return {"numeric_accuracy_%": 100 * self.accuracy, "numeric_precision_%": 100 * self.precision}
+
+
+def numeric_scores(references: Sequence[str], predictions: Sequence[str], tolerance: float = 0.10) -> NumericScores:
+    """Pooled over all scored answers, so an answer with many numbers counts for more."""
+    if len(references) != len(predictions):
+        raise ValueError(f"{len(references)} references but {len(predictions)} predictions")
+    matched = expected = correct = given = scored = 0
+    for reference, prediction in zip(references, predictions):
+        wanted = numbers(reference)
+        if not wanted:
+            continue
+        stated = numbers(prediction)
+        scored += 1
+        expected += len(wanted)
+        matched += sum(_close(n, stated, tolerance) for n in wanted)
+        given += len(stated)
+        correct += sum(_close(n, wanted, tolerance) for n in stated)
+    return NumericScores(matched / expected if expected else 0.0, correct / given if given else 0.0, scored)
 
 
 def words(text: str) -> list[str]:

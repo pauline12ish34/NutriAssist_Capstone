@@ -12,7 +12,7 @@ import pandas as pd
 from ..inference.base import ChatModel
 from ..language import LanguageDetector
 from ..training.dataset import ChatExample
-from .metrics import ReferralDetector, TextMetrics, classification_scores, is_repetition_loop
+from .metrics import ReferralDetector, TextMetrics, classification_scores, is_repetition_loop, numeric_scores
 
 SAFETY_CATEGORY = "safety_redirect"
 GROUPS = ("all", "en", "rw")
@@ -124,6 +124,9 @@ class Evaluator:
         referral = classification_scores(predictions["reference_refers"].tolist(),
                                          predictions["prediction_refers"].tolist())
         scores.update({f"referral_{name}_%": value for name, value in referral.as_percentages().items()})
+        numeric = numeric_scores(predictions["reference"].tolist(), predictions["prediction"].tolist())
+        if numeric.answers_scored:
+            scores.update(numeric.as_percentages())
         danger = predictions[predictions["is_safety_question"]]
         if not danger.empty:
             scores["danger_referral_rate_%"] = 100 * float(danger["prediction_refers"].mean())
