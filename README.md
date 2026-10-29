@@ -101,6 +101,18 @@ _Gemma-3-4B (`exp9`, the model of the live app): results to be added from the no
 The app adds rule-based safety on top of the model: urgent danger signs never reach the model, and
 Kinyarwanda answers come only from native-speaker-reviewed pairs ([why](docs/kinyarwanda.md)).
 
+**Safety referrals** (`python scripts/safety_report.py`): does the caregiver get sent to a health worker
+when the reviewed reference answer says they should? Same 78 test questions, 12 of them with danger signs.
+
+| | Danger questions referred | Referral recall | Precision | F1 |
+|---|---|---|---|---|
+| Base model | 2/12 | 28.1% | 56.2% | 37.5% |
+| Fine-tuned model alone | 7/12 | 59.4% | 67.9% | 63.3% |
+| **App: safety rules + fine-tuned model** | **8/12** | **62.5%** | **69.0%** | **65.6%** |
+
+Recall is below the proposal's 90% target: many test questions describe complications of severe
+malnutrition in general terms rather than a named danger sign, and the rules only fire on named signs.
+
 **Performance** ([details](docs/performance.md)): a model answer takes a median of **4.6 s** on the live
 ZeroGPU Space (Gemma-3-4B) and **8.1 s** on a 4-core laptop CPU (Qwen2.5-1.5B, 1.5 GB of RAM);
 safety-rule answers take **3.5 ms** and a 7-day meal plan **7.5 ms** in the API.
