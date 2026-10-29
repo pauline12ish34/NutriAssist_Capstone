@@ -11,7 +11,7 @@ local foods sized for the child's age.
 | | |
 |---|---|
 | **Repository** | https://github.com/pauline12ish34/NutriAssist_Capstone |
-| **Live app** | _add the Hugging Face Space link after deployment_ |
+| **Live app** | https://huggingface.co/spaces/pauline-ish/nutriAssist_Rw (free ZeroGPU Space; the first visit after 48 hours without visitors takes a few minutes to wake up) |
 | **Walkthrough video** | [Watch the demo on YouTube](https://youtu.be/hVc_Zxnya3w) |
 | **Technical report (PDF)** | _add link_ |
 | **Training notebook** | [Open in Colab](https://colab.research.google.com/github/pauline12ish34/NutriAssist_Capstone/blob/main/notebooks/nutriassist_training.ipynb) |

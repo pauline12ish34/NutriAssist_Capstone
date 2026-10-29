@@ -130,7 +130,7 @@ The *Logs* tab shows the build (about 5–10 minutes the first time) and then th
 - a Kinyarwanda question gets a reviewed answer or "Did you mean...?" questions;
 - the meal planner makes a 7-day plan, in both languages.
 
-The public address is `https://huggingface.co/spaces/your-username/nutriassist-rw`. Put it in the README.
+The public address is `https://huggingface.co/spaces/<your-username>/<space-name>` (this project: https://huggingface.co/spaces/pauline-ish/nutriAssist_Rw). Put it in the README.
 
 ### Updating the Space
 
