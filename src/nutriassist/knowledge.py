@@ -47,6 +47,7 @@ class ReviewedPair:
     category: str
     question: str
     answer: str
+    group: str = ""            # the same pair in the other language has the same group
 
 
 @dataclass(frozen=True)
@@ -113,7 +114,8 @@ def load_pairs(path: str | Path = QA_MASTER, splits: Iterable[str] | None = None
             row = json.loads(line)
             if splits is not None and row["split"] not in splits:
                 continue
-            pair = ReviewedPair(row["id"], row["lang"], row["category"], row["question"], row["answer"])
+            pair = ReviewedPair(row["id"], row["lang"], row["category"], row["question"], row["answer"],
+                                row.get("group", ""))
             paraphrases = row.get("paraphrases") or []
             wordings = [row["question"]]
             if paraphrase_splits is None or row["split"] in paraphrase_splits:
@@ -139,33 +141,63 @@ class _LanguageIndex:
         self.embedder = embedder
         self.embeddings = embedder(texts) if embedder is not None else None
 
-    def scores(self, question: str) -> np.ndarray:
-        """Similarity of ``question`` to every stored wording (0-1)."""
-        tfidf = (self.vectorizer.transform([question]) @ self.tfidf.T).toarray()[0]
-        if self.embeddings is None:
-            return tfidf
-        embedding = self.embeddings @ self.embedder([question])[0]
-        return (tfidf + np.clip(embedding, 0, 1)) / 2
+    def letters(self, question: str) -> np.ndarray:
+        """Character n-gram similarity of ``question`` to every stored wording (0-1)."""
+        return (self.vectorizer.transform([question]) @ self.tfidf.T).toarray()[0]
+
+    def meaning(self, embedding: np.ndarray) -> np.ndarray:
+        """Embedding similarity of a question to every stored wording (0-1)."""
+        return np.clip(self.embeddings @ embedding, 0, 1)
+
+    def best_per_group(self, embedding: np.ndarray) -> dict[str, float]:
+        """The closest wording's meaning similarity for each pair group."""
+        best: dict[str, float] = {}
+        for (pair, _), score in zip(self.entries, self.meaning(embedding)):
+            best[pair.group] = max(best.get(pair.group, 0.0), float(score))
+        return best
 
 
 class KnowledgeBase:
-    """Finds the reviewed pair whose question best matches a caregiver's question."""
+    """Finds the reviewed pair whose question best matches a caregiver's question.
+
+    With an ``embedder`` (LaBSE), the score adds meaning to the character match, in both languages: a
+    Kinyarwanda question is compared with the Kinyarwanda wordings and, through LaBSE's shared
+    space, with the English wordings of the same pairs. LaBSE understands English better than
+    Kinyarwanda, so the English side finds the right topic more often (``docs/kinyarwanda.md``).
+    """
 
     def __init__(self, pairs: Sequence[tuple[ReviewedPair, Sequence[str]]], embedder: Embedder | None = None,
-                 threshold: float = DEFAULT_THRESHOLD, key_terms: KeyTerms | None = None) -> None:
+                 threshold: float = DEFAULT_THRESHOLD, key_terms: KeyTerms | None = None,
+                 letters_weight: float = 0.5) -> None:
         self.threshold = threshold
         self.key_terms = key_terms
+        self.embedder = embedder
+        self.letters_weight = letters_weight   # with an embedder: the share of the score from characters
         by_language: dict[str, list[tuple[ReviewedPair, str]]] = {}
         for pair, wordings in pairs:
             by_language.setdefault(pair.lang, []).extend((pair, wording) for wording in wordings)
         self._indexes = {lang: _LanguageIndex(entries, embedder) for lang, entries in by_language.items()}
 
+    def _scores(self, question: str, lang: str) -> np.ndarray:
+        index = self._indexes[lang]
+        letters = index.letters(question)
+        if self.embedder is None:
+            return letters
+        embedding = self.embedder([question])[0]
+        same = index.meaning(embedding)
+        others = [i.best_per_group(embedding) for other, i in self._indexes.items() if other != lang]
+        # A pair with no twin in the other language (or no group) keeps its own-language meaning.
+        twin = np.array([max([o.get(pair.group, -1.0) for o in others if pair.group] or [-1.0])
+                         for pair, _ in index.entries])
+        meaning = np.where(twin >= 0, (same + twin) / 2, same)
+        return self.letters_weight * letters + (1 - self.letters_weight) * meaning
+
     @classmethod
     def load(cls, path: str | Path = QA_MASTER, embedder: Embedder | None = None,
              threshold: float = DEFAULT_THRESHOLD, food_names: str | Path | None = FOOD_NAMES,
-             **filters) -> "KnowledgeBase":
+             letters_weight: float = 0.5, **filters) -> "KnowledgeBase":
         key_terms = KeyTerms.load(food_names) if food_names is not None else None
-        return cls(load_pairs(path, **filters), embedder, threshold, key_terms)
+        return cls(load_pairs(path, **filters), embedder, threshold, key_terms, letters_weight)
 
     def __len__(self) -> int:
         return sum(len({pair.id for pair, _ in index.entries}) for index in self._indexes.values())
@@ -175,7 +207,7 @@ class KnowledgeBase:
         index = self._indexes.get(lang)
         if index is None:
             return None
-        scores = index.scores(question)
+        scores = self._scores(question, lang)
         wanted = self.key_terms(question) if self.key_terms else None
         for i in np.argsort(-scores):
             pair, wording = index.entries[i]
@@ -199,7 +231,7 @@ class KnowledgeBase:
         index = self._indexes.get(lang)
         if index is None:
             return []
-        scores = index.scores(question)
+        scores = self._scores(question, lang)
         wanted = self.key_terms(question) if self.key_terms else None
         ranked = [i for i in np.argsort(-scores) if scores[i] >= min_score]
         if wanted is not None:

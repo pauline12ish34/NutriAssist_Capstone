@@ -2,6 +2,7 @@
 
 import json
 
+import numpy as np
 import pytest
 
 pytest.importorskip("sklearn")
@@ -9,6 +10,7 @@ pytest.importorskip("sklearn")
 from nutriassist.assistant import NutritionAssistant, ReplySource  # noqa: E402
 from nutriassist.inference.scripted import ScriptedChatModel  # noqa: E402
 from nutriassist.knowledge import KnowledgeBase, ReviewedPair, load_pairs  # noqa: E402
+from nutriassist.prompts import build_grounded_messages, build_messages  # noqa: E402
 from nutriassist.terms import KeyTerms, Terminology  # noqa: E402
 from nutriassist.translation import TermAwareTranslator, apply_glossary, split_sentences, translate_text  # noqa: E402
 
@@ -80,6 +82,21 @@ class TestKnowledgeBase:
     def test_weak_matches_are_left_to_the_model(self, knowledge):
         assert knowledge.find("Ni ryari nzajya mu isoko rya Kimironko?", "rw") is None
 
+    def test_meaning_in_the_other_language_finds_the_pair(self):
+        # A toy embedder: one dimension per topic, the same in both languages.
+        topics = {"tea": ["tea", "icyayi"], "iron": ["iron", "ubutare", "amaraso"]}
+
+        def embed(texts):
+            rows = np.array([[float(any(w in t.lower() for w in words)) for words in topics.values()] for t in texts])
+            return rows / np.maximum(np.linalg.norm(rows, axis=1, keepdims=True), 1e-9)
+
+        tea = ReviewedPair("t-rw", "rw", "c", "Nshobora guha icyayi?", "Oya.", group="tea")
+        iron = ReviewedPair("i-rw", "rw", "c", "Ni ibihe biryo bifite ubutare?", "Ibishyimbo.", group="iron")
+        iron_en = ReviewedPair("i-en", "en", "c", "Which foods have iron?", "Beans.", group="iron")
+        kb = KnowledgeBase([(tea, [tea.question]), (iron, [iron.question]), (iron_en, [iron_en.question])],
+                           embedder=embed, letters_weight=0.0)
+        assert kb.suggest("Ni ibihe biryo byongera amaraso?", "rw", k=1, min_score=0.0)[0].pair is iron
+
     def test_evaluation_can_leave_out_held_out_pairs_and_paraphrases(self):
         train_only = load_pairs(splits={"train"})
         assert train_only and all(len(wordings) >= 1 for _, wordings in train_only)
@@ -102,6 +119,12 @@ class TestTranslation:
         translator = FakeTranslator()
         assert translate_text(translator, "One. Two.", "en", "rw") == "[rw] One. [rw] Two."
         assert translator.calls == [("en", "rw", ["One.", "Two."])]
+
+    def test_whole_text_translators_get_the_text_in_one_piece(self):
+        translator = FakeTranslator()
+        translator.whole_text = True
+        assert translate_text(translator, "- One.\n- Two.", "en", "rw") == "[rw] - One.\n- Two."
+        assert translator.calls == [("en", "rw", ["- One.\n- Two."])]
 
 
 class TestAssistantWithReviewedAnswers:
@@ -135,6 +158,33 @@ class TestAssistantWithReviewedAnswers:
         assistant, model = self.make(FakeTranslator())
         reply = assistant.ask("Umwana wanjye aragagara")
         assert reply.source is ReplySource.SAFETY_RULE and model.calls == []
+
+    def test_a_failed_translator_offers_reviewed_questions_instead_of_an_error(self):
+        class BusyTranslator(FakeTranslator):
+            def translate(self, texts, source, target):
+                raise ConnectionError("503 UNAVAILABLE")
+
+        assistant, model = self.make(BusyTranslator())
+        reply = assistant.ask("Nshobora guha umwana wanjye icyayi n'amata?")
+        assert reply.source is ReplySource.NO_MATCH and not reply.translated and model.calls == []
+        assert reply.suggestions == ["Nshobora guha icyayi umwana wanjye muto?"]
+
+    def test_grounding_puts_the_closest_reviewed_pairs_in_the_prompt(self):
+        class RecordingModel(ScriptedChatModel):
+            def generate_batch(self, conversations):
+                self.prompts = [list(c) for c in conversations]
+                return super().generate_batch(conversations)
+
+        model = RecordingModel(lambda q: "Oya, ntukamuhe icyayi.")
+        kb = KnowledgeBase([(pair("Nshobora guha icyayi umwana wanjye muto?", "Oya, icyayi si cyiza ku bana bato."),
+                             ["Nshobora guha icyayi umwana wanjye muto?"])], key_terms=KeyTerms.load())
+        reply = NutritionAssistant(model, knowledge=kb, grounding=3).ask("Icyayi cyaba kibi ku mwana w'amezi 7?")
+        system = model.prompts[0][0]["content"]
+        assert reply.source is ReplySource.MODEL and "Oya, icyayi si cyiza ku bana bato." in system
+        assert model.prompts[0][1] == {"role": "user", "content": "Icyayi cyaba kibi ku mwana w'amezi 7?"}
+
+    def test_without_grounding_the_prompt_is_the_trained_one(self):
+        assert build_grounded_messages("Q?", []) == build_messages("Q?")
 
     def test_doses_in_translated_answers_are_still_blocked(self):
         assistant, _ = self.make(FakeTranslator(), responder=lambda q: "Give 5 ml of paracetamol.")

@@ -47,8 +47,10 @@ class Settings:
     match_threshold: float = DEFAULT_THRESHOLD
     embeddings: bool = False                 # LaBSE embeddings for matching: measured worse than characters alone, off
     # How a Kinyarwanda question with no reviewed answer is answered: "reviewed" (no answer, "Did you mean...?"
-    # suggestions), "translate" (NLLB through English) or "model" (the model writes Kinyarwanda itself).
-    kinyarwanda: str = "reviewed"
+    # suggestions), "translate" (through English) or "model" (the model writes Kinyarwanda itself).
+    kinyarwanda: str = "translate"
+    translator: str = "gemini"              # for "translate": "gemini" (online, the app's) or "nllb" (offline)
+    grounding: int = 0                      # RAG: closest reviewed pairs put in the model's prompt (0: off)
     unanswered_log: Path | None = Path("logs/unanswered.jsonl")   # questions with no reviewed answer
 
     @classmethod
@@ -67,6 +69,8 @@ class Settings:
             match_threshold=float(env("NUTRIASSIST_MATCH_THRESHOLD", cls.match_threshold)),
             embeddings=env("NUTRIASSIST_EMBEDDINGS", "off").lower() in {"on", "1", "true", "yes"},
             kinyarwanda=env("NUTRIASSIST_KINYARWANDA", cls.kinyarwanda).lower(),
+            translator=env("NUTRIASSIST_TRANSLATOR", cls.translator).lower(),
+            grounding=int(env("NUTRIASSIST_GROUNDING", cls.grounding)),
             unanswered_log=_optional_path(env("NUTRIASSIST_UNANSWERED_LOG", str(cls.unanswered_log))),
         )
 
@@ -93,15 +97,36 @@ def build_knowledge_base(settings: Settings) -> KnowledgeBase | None:
     return KnowledgeBase.load(settings.knowledge_path, embedder, settings.match_threshold)
 
 
+def build_example_index(settings: Settings) -> KnowledgeBase | None:
+    """For grounding (RAG): the reviewed pairs searched by meaning in both languages (LaBSE).
+
+    ``None`` (examples then come from the character index) when grounding is off, the file is missing
+    or ``sentence-transformers`` is not installed.
+    """
+    if not settings.grounding or settings.knowledge_path is None or not settings.knowledge_path.exists():
+        return None
+    try:
+        from ..knowledge import SentenceEmbedder
+
+        embedder = SentenceEmbedder()
+    except ImportError:
+        log.warning("sentence-transformers is not installed: grounding examples are found by characters only")
+        return None
+    return KnowledgeBase.load(settings.knowledge_path, embedder, settings.match_threshold, letters_weight=0.0)
+
+
 KINYARWANDA_MODES = ("reviewed", "translate", "model")
+TRANSLATORS = ("gemini", "nllb")
 
 
-def reviewed_only_languages(settings: Settings, knowledge: KnowledgeBase | None) -> frozenset[str]:
-    """Languages the model must not write: Kinyarwanda in ``reviewed`` mode, when reviewed answers exist."""
+def reviewed_only_languages(settings: Settings, knowledge: KnowledgeBase | None,
+                            translator: Translator | None = None) -> frozenset[str]:
+    """Languages the model must not write: Kinyarwanda in ``reviewed`` mode, or in ``translate`` mode with no
+    translator, when reviewed answers exist."""
     if settings.kinyarwanda not in KINYARWANDA_MODES:
         raise ValueError(f"NUTRIASSIST_KINYARWANDA must be one of {', '.join(KINYARWANDA_MODES)}, "
                          f"not {settings.kinyarwanda!r}")
-    if settings.kinyarwanda != "reviewed":
+    if settings.kinyarwanda == "model" or (settings.kinyarwanda == "translate" and translator is not None):
         return frozenset()
     if knowledge is None:
         log.warning("No reviewed answers loaded: Kinyarwanda questions go to the model")
@@ -112,12 +137,18 @@ def reviewed_only_languages(settings: Settings, knowledge: KnowledgeBase | None)
 def build_translator(settings: Settings) -> Translator | None:
     if settings.kinyarwanda != "translate":
         return None
+    if settings.translator not in TRANSLATORS:
+        raise ValueError(f"NUTRIASSIST_TRANSLATOR must be one of {', '.join(TRANSLATORS)}, not {settings.translator!r}")
     try:
+        if settings.translator == "gemini":
+            from ..translation import GeminiTranslator
+
+            return GeminiTranslator()
         from ..translation import NllbTranslator, TermAwareTranslator
 
         return TermAwareTranslator(NllbTranslator())
-    except ImportError:
-        log.warning("transformers/torch are not installed: Kinyarwanda questions go straight to the model")
+    except (ImportError, RuntimeError) as error:   # RuntimeError: no Gemini API key
+        log.warning("No %s translator (%s): Kinyarwanda questions get reviewed answers only", settings.translator, error)
         return None
 
 

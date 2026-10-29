@@ -29,7 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent))  # lets this file import texts
 
 import gradio as gr  # noqa: E402
 
-from nutriassist.api.settings import Settings, build_chat_model, build_knowledge_base, reviewed_only_languages  # noqa: E402
+from nutriassist.api.settings import (Settings, build_chat_model, build_example_index, build_knowledge_base,  # noqa: E402
+                                      build_translator, reviewed_only_languages)
 from nutriassist.assistant import AssistantReply, InvalidQuestion, NutritionAssistant, ReplySource  # noqa: E402
 from nutriassist.inference.base import ChatModel, GenerationSettings  # noqa: E402
 from nutriassist.planner import FoodCatalogue, MealPlanner, PlanRequest  # noqa: E402
@@ -127,10 +128,17 @@ class Services:
 
     @classmethod
     def create(cls, model: ChatModel | None = None) -> "Services":
-        settings = Settings()
+        env = os.environ.get
+        # Space variables: NUTRIASSIST_KINYARWANDA (translate / model / reviewed) and NUTRIASSIST_GROUNDING (RAG).
+        settings = Settings(kinyarwanda=env("NUTRIASSIST_KINYARWANDA", Settings.kinyarwanda).lower(),
+                            grounding=int(env("NUTRIASSIST_GROUNDING", Settings.grounding)))
         knowledge = build_knowledge_base(settings)
-        assistant = NutritionAssistant(model or load_model(), knowledge=knowledge,
-                                       reviewed_only=reviewed_only_languages(settings, knowledge))
+        # Gemini translation needs the Space secret GEMINI_API_KEY; without it Kinyarwanda gets reviewed answers only.
+        translator = build_translator(settings) if model is None else None
+        assistant = NutritionAssistant(model or load_model(), knowledge=knowledge, translator=translator,
+                                       reviewed_only=reviewed_only_languages(settings, knowledge, translator),
+                                       grounding=settings.grounding,
+                                       examples=build_example_index(settings) if model is None else None)
         catalogue = FoodCatalogue.load()
         return cls(assistant, catalogue, MealPlanner(catalogue))
 

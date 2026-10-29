@@ -34,3 +34,6 @@ Thumbs.db
 
 # Questions the app could not answer (may contain what caregivers typed)
 logs/
+
+# Industrial attachment logbook (personal, not part of the project)
+UR loogbook/

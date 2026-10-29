@@ -8,23 +8,25 @@
                                                                   │
                                                                   no
                                                                   │
-          reviewed-only language (Kinyarwanda in the app)? ── yes ──► "no checked answer" + "Did you mean...?"
-                                                  │
-                                                  no
-                                                  │
+            reviewed-only language (``NUTRIASSIST_KINYARWANDA=reviewed``)? ── yes ──► "Did you mean...?"
+                                                  │                                        ▲
+                                                  no                          translator failed
+                                                  │                                        │
                          Kinyarwanda and a translator? ── yes ──► translate to English ─► model ─► translate back
                                                   │                                                   │
                                                   no ──► model answer ────────────────────────────────┤
                                                                                                       ▼
                                                                          dose check ─► referral check ─► reply
 
-The fine-tuned model writes reliable English but not reliable Kinyarwanda, and machine translation was
-judged not good enough by a native speaker (``docs/kinyarwanda.md``). So the app shows Kinyarwanda only
-from reviewed answers; translation and the model's own Kinyarwanda remain available for evaluation.
+The fine-tuned model writes reliable English but not reliable Kinyarwanda (``docs/kinyarwanda.md``).
+So a Kinyarwanda question with no reviewed answer is translated to English (by Gemini in the app),
+answered by the model in English and translated back; the app labels these answers machine-translated.
+NLLB, the offline translator, was judged not good enough by a native speaker.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from dataclasses import dataclass, field
@@ -34,12 +36,14 @@ from typing import Iterable
 from .inference.base import ChatModel
 from .knowledge import KnowledgeBase, Match
 from .language import ENGLISH, KINYARWANDA, LanguageDetector
-from .prompts import SYSTEM_PROMPT, build_messages
+from .prompts import SYSTEM_PROMPT, build_grounded_messages, build_messages
 from .safety import messages
 from .safety.detector import DangerSignDetector, SafetyAssessment
 from .safety.referral import ReferralDetector
 from .safety.rules import SafetyLevel
 from .translation import Translator, strip_foreign_script, translate_text
+
+log = logging.getLogger("nutriassist.assistant")
 
 MAX_QUESTION_CHARS = 1000
 
@@ -87,7 +91,8 @@ class NutritionAssistant:
     def __init__(self, model: ChatModel, detector: DangerSignDetector | None = None,
                  language: LanguageDetector | None = None, referrals: ReferralDetector | None = None,
                  system_prompt: str = SYSTEM_PROMPT, knowledge: KnowledgeBase | None = None,
-                 translator: Translator | None = None, reviewed_only: Iterable[str] = ()) -> None:
+                 translator: Translator | None = None, reviewed_only: Iterable[str] = (),
+                 grounding: int = 0, examples: KnowledgeBase | None = None) -> None:
         self.model = model
         self.detector = detector or DangerSignDetector()
         self.language = language or LanguageDetector()
@@ -95,6 +100,11 @@ class NutritionAssistant:
         self.system_prompt = system_prompt
         self.knowledge = knowledge
         self.translator = translator
+        # RAG: this many closest reviewed pairs go into the model's prompt (0: the prompt it was trained with).
+        self.grounding = grounding
+        # Where the examples come from: a meaning-based index finds on-topic examples twice as often as
+        # character matching (docs/kinyarwanda.md), but matching for direct answers stays on characters.
+        self.examples = examples
         # Languages answered only from reviewed answers: the model never writes them.
         self.reviewed_only = frozenset(reviewed_only)
         if self.reviewed_only and knowledge is None:
@@ -118,13 +128,12 @@ class NutritionAssistant:
             answer, source = messages.HONEY[lang], ReplySource.SAFETY_RULE
         elif self.knowledge is not None and (match := self.knowledge.find(question, lang)) is not None:
             answer, source = match.pair.answer, ReplySource.REVIEWED
-        elif lang in self.reviewed_only:
+        elif lang in self.reviewed_only or (answer := self._generated_answer(question, lang)) is None:
             suggestions = [m.pair.question for m in self.knowledge.suggest(question, lang)]
             answer = (messages.NO_MATCH if suggestions else messages.NO_MATCH_NO_SUGGESTIONS)[lang]
             source = ReplySource.NO_MATCH
         else:
             translated = lang == KINYARWANDA and self.translator is not None
-            answer = self._translated_answer(question) if translated else self._model_answer(question)
             source = ReplySource.MODEL
             if _HONEY.search(answer) and not _HONEY_AGE_LIMIT.search(answer):
                 answer = f"{answer}\n\n{messages.HONEY[lang]}"
@@ -144,14 +153,39 @@ class NutritionAssistant:
             suggestions=suggestions,
         )
 
-    def _model_answer(self, question: str) -> str:
+    def _generated_answer(self, question: str, lang: str) -> str | None:
+        """The model's answer, through translation for Kinyarwanda when a translator is set.
+
+        ``None`` when the translator fails (Gemini is online and can be busy or unreachable) and reviewed
+        answers exist: the caller then offers the closest reviewed questions instead of an error.
+        """
+        if lang != KINYARWANDA or self.translator is None:
+            return self._model_answer(question, lang)
+        try:
+            return self._translated_answer(question)
+        except Exception:
+            if self.knowledge is None:
+                raise
+            log.warning("Translation failed; offering reviewed questions instead", exc_info=True)
+            return None
+
+    def _model_answer(self, question: str, lang: str) -> str:
         # Qwen occasionally slips in a Chinese word ("colds (感冒)"); caregivers cannot read it.
-        answer = self.model.generate(build_messages(question, system_prompt=self.system_prompt))
+        answer = self.model.generate(self._messages(question, lang))
         return strip_foreign_script(answer).strip()
+
+    def _messages(self, question: str, lang: str):
+        """The prompt, with the closest reviewed pairs in ``lang`` when grounding is on (RAG)."""
+        index = self.examples or self.knowledge
+        if not self.grounding or index is None:
+            return build_messages(question, system_prompt=self.system_prompt)
+        examples = index.suggest(question, lang, k=self.grounding, min_score=0.0)
+        return build_grounded_messages(question, [(m.pair.question, m.pair.answer) for m in examples],
+                                       system_prompt=self.system_prompt)
 
     def _translated_answer(self, question: str) -> str:
         english_question = translate_text(self.translator, question, KINYARWANDA, ENGLISH)
-        english_answer = self._model_answer(english_question)
+        english_answer = self._model_answer(english_question, ENGLISH)
         return translate_text(self.translator, english_answer, ENGLISH, KINYARWANDA)
 
     def _answered_by(self, source: ReplySource, translated: bool) -> str:

@@ -38,22 +38,24 @@ MIN_PRECISION = 95.0
 
 
 def knowledge_for(split: str, path: str | Path = QA_MASTER, embedder: Embedder | None = None,
-                  threshold: float = 0.0, extra_wordings: str | Path | None = EXTRA_WORDINGS) -> KnowledgeBase:
+                  threshold: float = 0.0, extra_wordings: str | Path | None = EXTRA_WORDINGS,
+                  letters_weight: float = 0.5) -> KnowledgeBase:
     """The index used when evaluating ``split``: training pairs only, with their paraphrases."""
     return KnowledgeBase.load(path, embedder, threshold, splits={"train"}, paraphrase_splits={"train"},
-                              extra_wordings=extra_wordings)
+                              extra_wordings=extra_wordings, letters_weight=letters_weight)
 
 
 def matching_study(split: str, paraphrases: Sequence[ChatExample], path: str | Path = QA_MASTER,
                    embedder: Embedder | None = None,
-                   extra_wordings: str | Path | None = EXTRA_WORDINGS) -> pd.DataFrame:
+                   extra_wordings: str | Path | None = EXTRA_WORDINGS, letters_weight: float = 0.5) -> pd.DataFrame:
     """One row per question: its best match's score, whether that match's answer is right, and whether
     the right answer is among the "Did you mean...?" suggestions."""
     master = pd.read_json(path, lines=True)
     rows = []
 
     # Reworded questions: everything indexed except the held-out paraphrase wordings themselves.
-    deployed = KnowledgeBase.load(path, embedder, 0.0, paraphrase_splits={"train"}, extra_wordings=extra_wordings)
+    deployed = KnowledgeBase.load(path, embedder, 0.0, paraphrase_splits={"train"}, extra_wordings=extra_wordings,
+                                  letters_weight=letters_weight)
     for example in (p for p in paraphrases if _split_of(p, master) == split):
         match = deployed.best(example.question, example.lang)
         suggested = [m.pair.answer for m in deployed.suggest(example.question, example.lang)]
@@ -62,7 +64,7 @@ def matching_study(split: str, paraphrases: Sequence[ChatExample], path: str | P
                          in_suggestions=example.answer in suggested))
 
     # New questions: only training pairs indexed, so no match can be right.
-    train_only = knowledge_for(split, path, embedder, extra_wordings=extra_wordings)
+    train_only = knowledge_for(split, path, embedder, extra_wordings=extra_wordings, letters_weight=letters_weight)
     for record in master[master["split"] == split].itertuples():
         match = train_only.best(record.question, record.lang)
         rows.append(_row("new", record.lang, record.question, match, right=False))

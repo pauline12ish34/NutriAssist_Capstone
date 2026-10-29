@@ -162,3 +162,19 @@ def test_kinyarwanda_mode_must_be_known():
         reviewed_only_languages(Settings(kinyarwanda="google"), None)
     assert reviewed_only_languages(Settings(), None) == frozenset()          # no reviewed answers: model answers
     assert reviewed_only_languages(Settings(kinyarwanda="model"), object()) == frozenset()
+
+
+def test_kinyarwanda_falls_back_to_reviewed_answers_without_a_translator():
+    from nutriassist.api.settings import reviewed_only_languages
+
+    assert reviewed_only_languages(Settings(), object(), translator=object()) == frozenset()
+    assert reviewed_only_languages(Settings(), object(), translator=None) == {"rw"}
+    assert reviewed_only_languages(Settings(kinyarwanda="reviewed"), object(), translator=object()) == {"rw"}
+
+
+def test_translator_must_be_known():
+    from nutriassist.api.settings import build_translator
+
+    with pytest.raises(ValueError):
+        build_translator(Settings(translator="google"))
+    assert build_translator(Settings(kinyarwanda="reviewed")) is None

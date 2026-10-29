@@ -24,7 +24,8 @@ from ..planner import FoodCatalogue, MealPlanner, PlanRequest
 from .schemas import (ChatRequest, ChatResponse, ErrorResponse, FoodOut, HealthResponse, MealPlanRequest,
                       MealPlanResponse)
 from ..translation import Translator
-from .settings import Settings, build_chat_model, build_knowledge_base, build_translator, reviewed_only_languages
+from .settings import (Settings, build_chat_model, build_example_index, build_knowledge_base, build_translator,
+                       reviewed_only_languages)
 
 log = logging.getLogger("nutriassist.api")
 
@@ -34,9 +35,10 @@ class Services:
 
     def __init__(self, model: ChatModel, demo_mode: bool, catalogue: FoodCatalogue,
                  knowledge: KnowledgeBase | None = None, translator: Translator | None = None,
-                 reviewed_only: frozenset[str] = frozenset(), unanswered_log: Path | None = None) -> None:
+                 reviewed_only: frozenset[str] = frozenset(), unanswered_log: Path | None = None,
+                 grounding: int = 0, examples: KnowledgeBase | None = None) -> None:
         self.assistant = NutritionAssistant(model, knowledge=knowledge, translator=translator,
-                                            reviewed_only=reviewed_only)
+                                            reviewed_only=reviewed_only, grounding=grounding, examples=examples)
         self.unanswered_log = unanswered_log
         self.demo_mode = demo_mode
         self.catalogue = catalogue
@@ -72,16 +74,19 @@ def create_app(settings: Settings | None = None, model: ChatModel | None = None,
     async def lifespan(app: FastAPI):
         if model is not None:
             chat_model, demo, kb, mt = model, False, knowledge, translator
-            only, unanswered = reviewed_only, unanswered_log
+            only, unanswered, grounding = reviewed_only, unanswered_log, (settings.grounding if settings else 0)
+            examples = None
         else:
             config = settings or Settings.from_env()
             chat_model, demo = build_chat_model(config)
             kb, mt = build_knowledge_base(config), build_translator(config)
-            only, unanswered = reviewed_only_languages(config, kb), config.unanswered_log
-        log.info("Serving model %s (demo mode: %s); reviewed answers: %s; reviewed-only languages: %s; translator: %s",
-                 chat_model.name, demo, len(kb) if kb else "off", ", ".join(sorted(only)) or "none",
-                 mt.name if mt else "off")
-        app.state.services = Services(chat_model, demo, catalogue or FoodCatalogue.load(), kb, mt, only, unanswered)
+            only, unanswered = reviewed_only_languages(config, kb, mt), config.unanswered_log
+            grounding, examples = config.grounding, build_example_index(config)
+        log.info("Serving model %s (demo mode: %s); reviewed answers: %s; reviewed-only languages: %s; translator: %s; "
+                 "grounding examples: %s", chat_model.name, demo, len(kb) if kb else "off",
+                 ", ".join(sorted(only)) or "none", mt.name if mt else "off", grounding or "off")
+        app.state.services = Services(chat_model, demo, catalogue or FoodCatalogue.load(), kb, mt, only, unanswered,
+                                      grounding, examples)
         yield
 
     app = FastAPI(

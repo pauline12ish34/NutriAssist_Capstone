@@ -16,8 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 API_PORT, APP_PORT = 8000, 8501
 
 
-def wait_for_api(timeout_s: float = 120) -> bool:
-    deadline = time.time() + timeout_s   # loading a large model can take a while
+def wait_for_api(timeout_s: float = 360) -> bool:
+    # Loading a large model can take a while, and with NUTRIASSIST_GROUNDING LaBSE encodes every reviewed wording.
+    deadline = time.time() + timeout_s
     while time.time() < deadline:
         try:
             with urllib.request.urlopen(f"http://localhost:{API_PORT}/health", timeout=2):
