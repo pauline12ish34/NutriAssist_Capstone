@@ -10,3 +10,4 @@ numpy>=1.26
 scikit-learn>=1.4
 openpyxl>=3.1
 google-genai>=1.0   # Gemini translation of Kinyarwanda questions with no reviewed answer (secret GEMINI_API_KEY)
+sentence-transformers>=3.0   # LaBSE: finds on-topic examples for the model's prompt (variable NUTRIASSIST_GROUNDING)
