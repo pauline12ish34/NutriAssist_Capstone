@@ -128,7 +128,9 @@ ABOUT = {
 ### Where the information comes from
 - Answers: a language model fine-tuned on 513 question-answer pairs on child and maternal nutrition,
   checked for safety and reviewed in Kinyarwanda by a native speaker.
-- Meal plans: WHO/FAO nutrient needs and a food table checked against USDA values.
+- Meal plans: a food composition workbook from a nutritionist, with 5 sheets of foods: **2,395 foods**,
+  each with 33 nutrients. The planner uses **33 common Rwandan foods** from it, with values checked against
+  USDA, and WHO/FAO nutrient needs for the child's age.
 """,
     "rw": """
 ### NutriAssist-RW ikora iki
@@ -155,6 +157,9 @@ ABOUT = {
 ### Amakuru akomoka he
 - Ibisubizo: porogaramu y'ururimi yatojwe ku bibazo n'ibisubizo 513 ku mirire y'abana n'ababyeyi,
   byagenzuwe ku mutekano kandi Ikinyarwanda cyasuzumwe n'ukivuga kavukire.
-- Gahunda y'amafunguro: ibyo umubiri ukeneye bya OMS/FAO n'imbonerahamwe y'ibiribwa yagenzuwe hakoreshejwe USDA.
+- Gahunda y'amafunguro: imbonerahamwe y'ibiribwa yatanzwe n'inzobere mu mirire, ifite impapuro 5:
+  **ibiribwa 2.395**, buri kimwe gifite intungamubiri 33. Gahunda ikoresha **ibiribwa 33 bisanzwe mu Rwanda**
+  biyirimo, agaciro kabyo kagenzuwe hakoreshejwe USDA, n'ibyo umubiri ukeneye bya OMS/FAO bijyanye n'imyaka
+  y'umwana.
 """,
 }
