@@ -1,6 +1,6 @@
 # Deployment guide
 
-NutriAssist-RW has two parts that run together:
+On your computer and in Docker (options 1 and 2), NutriAssist-RW has two parts that run together:
 
 | Part | Technology | Port | What it does |
 |---|---|---|---|
@@ -71,46 +71,80 @@ The `models` folder is mounted into the container so the model file is not copie
 
 ---
 
-## Option 3: publish online on Hugging Face Spaces (free)
+## Option 3: publish online on a Hugging Face ZeroGPU Space (free GPU)
 
-A free Space has 2 CPU cores and 16 GB of RAM, enough for the model. The Space builds from the GitHub
-repository, and the model is downloaded from Hugging Face Hub when the Space starts, so the large file is
-never uploaded from your computer.
+Hugging Face now requires a paid plan (PRO) to create Docker or Streamlit Spaces. The free option is a
+**Gradio Space on ZeroGPU**, which lends the app a large NVIDIA GPU (48 GB) only while the model writes an
+answer. That is also much faster than the free CPU: about 2–5 seconds per model answer instead of 15–25,
+and it can serve the 4B Gemma model, which would take about a minute per answer on a CPU.
+
+So the online app is a Gradio version of the same app, `app/gradio_app.py`. It has the same three pages
+(chat, meal planner, how to use) in English and Kinyarwanda, and runs the same code behind them: safety
+rules, reviewed answers and meal planner. The differences from the Docker app:
+
+| | Docker app (options 1–2) | ZeroGPU Space (option 3) |
+|---|---|---|
+| Interface | Streamlit, talking to FastAPI over HTTP (Swagger at `/docs`) | Gradio, assistant in the same process (ZeroGPU only lends GPUs to Gradio apps) |
+| Model | GGUF file with llama.cpp on the CPU | base model + LoRA adapter with Transformers on the GPU |
+| Model answer | 7–11 s on a laptop | about 2–5 s, plus a short wait when the GPU queue is busy |
+
+```
+Browser ──► Gradio app ──► safety rules / reviewed answers   (no GPU, under 0.2 s)
+                 └───────► @spaces.GPU ──► Transformers model on a borrowed GPU
+                 └───────► meal planner (food table)
+```
+
+Limits of the free tier: a free account can host 2 ZeroGPU Spaces (verified email, account older than 30
+days). Each **visitor** gets a daily GPU allowance: 5 minutes when logged in to Hugging Face, 2 minutes
+otherwise, which is dozens of model answers. Reviewed answers, safety messages and meal plans use no GPU.
 
 ### Step 1: publish the model to Hugging Face Hub (from Colab)
 
 1. Create a free account at https://huggingface.co and a **write** token at *Settings → Access Tokens*.
-2. In the training notebook, section 8.3, set `HF_REPO = "your-username/nutriassist-rw"` and run the
-   cell. Paste the token when asked. The adapter and the GGUF file are uploaded from Google's network,
-   which is much faster than uploading from your own connection.
+2. In the training notebook, section 8.5, set `HF_REPO` and run the cell. Paste the token when asked. It
+   uploads the adapter of the best experiment into the repo's `adapter/` folder.
 
 ### Step 2: create the Space
 
-1. On Hugging Face: *New → Space*. Name: `nutriassist-rw`. SDK: **Docker** (*Blank* template).
-   Hardware: **CPU basic (free)**. Visibility: Public.
-2. In the Space, open *Files → Add file → Upload files* and upload the two files from this repository's
-   `deploy/hf-space/` folder: `Dockerfile` and `README.md` (replace the existing README).
-3. *Settings → Variables and secrets → New variable*:
-   - `NUTRIASSIST_HF_REPO` = `your-username/nutriassist-rw`
-   - optional: `NUTRIASSIST_MAX_NEW_TOKENS` = `256` (shorter answers come back faster on the free CPU)
+1. On Hugging Face: *New → Space*. Name: `nutriassist-rw`. SDK: **Gradio** (*Blank* template).
+   Hardware: **ZeroGPU**. Visibility: Public.
+2. In the Space, open *Files → Add file → Upload files* and upload the three files from this repository's
+   `deploy/hf-zerogpu/` folder: `app.py`, `requirements.txt` and `README.md` (replace the existing README).
+3. *Settings → Variables and secrets → New variable*, only if the defaults are not what you want:
+   - `NUTRIASSIST_BASE_MODEL` (default `unsloth/gemma-3-4b-it`): the base model the adapter was trained on.
+     For an experiment trained after continued pre-training, upload that merged model and put its repo here.
+   - `NUTRIASSIST_ADAPTER_REPO` (default `pauline-ish/NutritionAssistant_RW`) and
+     `NUTRIASSIST_ADAPTER_FOLDER` (default `adapter`): where the LoRA adapter is.
+   - `NUTRIASSIST_MAX_NEW_TOKENS` (default `320`).
+
    If the model repo is private, also add a **secret** `HF_TOKEN` with a read token.
 
 ### Step 3: wait for the build, then test
 
-The *Logs* tab shows the build (about 5–15 minutes the first time) and then the model download. When
-the status turns **Running**, open the Space. Check:
+The *Logs* tab shows the build (about 5–10 minutes the first time) and then the model download (about
+8 GB for Gemma-3-4B). When the status turns **Running**, open the Space and check:
 
-- the sidebar says *Assistant is online* and **not** *Demo mode*;
-- a normal question gets an answer;
+- a normal English question gets an answer from the model, and the line under it names the model;
+- "Is it safe to give honey to my 4 month old baby?" gets the fixed honey message immediately;
 - "My child is having a seizure" gets the urgent safety message immediately;
-- the meal planner makes a 7-day plan.
+- a Kinyarwanda question gets a reviewed answer or "Did you mean...?" questions;
+- the meal planner makes a 7-day plan, in both languages.
 
 The public address is `https://huggingface.co/spaces/your-username/nutriassist-rw`. Put it in the README.
 
 ### Updating the Space
 
-The Space copies the GitHub repository when it is built. After pushing new code to GitHub, open the
-Space's *Settings* and click **Factory rebuild**.
+`app.py` copies the GitHub repository each time the Space starts. After pushing new code to GitHub, open
+the Space's *Settings* and click **Restart Space**. To switch the model, change the variables in step 2.3.
+
+The free Space sleeps after 48 hours without visitors; the first visit after that takes a few minutes, so
+open it before a demonstration.
+
+### Paid alternative: the Docker Space
+
+With a PRO account, the Docker app can run as it is: create a Space with SDK **Docker**, upload
+`deploy/hf-space/Dockerfile` and `deploy/hf-space/README.md`, and set `NUTRIASSIST_HF_REPO` to a repo
+holding the GGUF file. It runs on the CPU, so model answers take 15–25 seconds.
 
 ---
 

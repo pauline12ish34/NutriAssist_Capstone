@@ -4,22 +4,7 @@ import streamlit as st
 
 from api_client import ApiError, NutriAssistClient
 from i18n import language, t
-
-EXAMPLES = {
-    "en": [
-        "What foods should I give my 8-month-old baby?",
-        "How can I add more iron to my child's food?",
-        "What should I eat while breastfeeding?",
-        "My child has a fever, what should she eat?",
-    ],
-    # Reviewed questions, so each example gets its approved answer (Kinyarwanda comes only from reviewed answers).
-    "rw": [
-        "Umwana w'amezi 9 akwiye kurya angana iki?",
-        "Ni ibihe biryo byo mu Rwanda bikungahaye ku butare?",
-        "Abagore batwite bakwiye kurya iki kugira ngo barinde abana babo imirire mibi?",
-        "Nagaburira nte umwana urwaye?",
-    ],
-}
+from texts import EXAMPLES
 
 client = NutriAssistClient()
 st.session_state.setdefault("messages", [])

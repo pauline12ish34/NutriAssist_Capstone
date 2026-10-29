@@ -109,7 +109,8 @@ _Fill in from `final_comparison.csv` and `experiment_table.csv` after training (
 │   └── reference/               Kinyarwanda food names, planner foods
 ├── tests/                       239 tests (unit, integration, end-to-end)
 ├── docs/                        data, cleaning, dataset and deployment documentation
-├── deploy/hf-space/             Hugging Face Space build files
+├── deploy/hf-zerogpu/          Hugging Face ZeroGPU Space files (the online app)
+├── deploy/hf-space/             Docker Space build files (needs a paid plan)
 ├── scripts/                     local launcher, container start script
 ├── Dockerfile                   API + app in one container
 └── pyproject.toml               package metadata and dependencies
@@ -185,8 +186,11 @@ pytest -m "not integration"   # fast unit tests only
 
 ## Deployment
 
-The app is deployed as one Docker container (API + web app) on Hugging Face Spaces (free CPU tier).
-The model is published to Hugging Face Hub from Colab and downloaded by the Space at start-up.
+Online, the app runs on a free Hugging Face **ZeroGPU** Space: a Gradio version of the app
+(`app/gradio_app.py`) with the same safety rules, reviewed answers and meal planner, and the fine-tuned
+model on a borrowed GPU (about 2–5 s per model answer). Hugging Face only gives free GPUs to Gradio apps,
+and Docker Spaces now need a paid plan. Locally, the app runs as one Docker container (FastAPI + Streamlit,
+model on the CPU with llama.cpp).
 Step-by-step instructions for local, Docker and Spaces deployment are in **[docs/deployment.md](docs/deployment.md)**.
 
 ## Documentation

@@ -1,0 +1,11 @@
+# Python packages for the ZeroGPU Space. Gradio and spaces come with the Space (sdk_version in README.md).
+# ZeroGPU supports PyTorch 2.8.0 to 2.13.0.
+torch==2.13.0
+transformers>=4.56
+peft>=0.14
+accelerate>=1.0
+huggingface_hub>=0.23
+pandas>=2.0
+numpy>=1.26
+scikit-learn>=1.4
+openpyxl>=3.1
