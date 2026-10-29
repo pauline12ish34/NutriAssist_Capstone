@@ -98,6 +98,27 @@ from notebook section 6. Model: Qwen2.5-1.5B, experiment `exp3_lr_5e-4` (the mod
 
 _Gemma-3-4B (`exp9`, the model of the live app): results to be added from the notebook._
 
+**Hyperparameter experiments** (Qwen2.5-1.5B, QLoRA, validation set; Colab GPU; [CSV](docs/results/experiment_table.csv)).
+Each experiment changes one setting from `exp1_baseline`.
+
+| Experiment | Learning rate | LoRA rank | Epochs | Trainable params (M) | Train time (min) | Peak GPU memory (GB) | Val loss | Val perplexity | Val chrF | Val ROUGE-L | Val referral F1 % |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| base model (no fine-tuning) | | | | | | | | 54.2 | 22.3 | 9.3 | 40.0 |
+| exp1_baseline | 2e-4 | 16 | 3 | 18.5 | 5.2 | 17.4 | 2.08 | 11.0 | 32.6 | 26.7 | 64.0 |
+| exp2_lr_1e-4 | 1e-4 | 16 | 3 | 18.5 | 5.2 | 18.3 | 2.17 | 13.0 | 30.0 | 25.6 | **69.0** |
+| **exp3_lr_5e-4** | 5e-4 | 16 | 3 | 18.5 | 5.2 | 19.2 | 2.15 | 11.1 | 34.6 | **28.2** | 62.5 |
+| exp4_rank_8 | 2e-4 | 8 | 3 | 9.2 | 5.2 | 20.0 | 2.11 | 11.7 | 31.8 | 26.7 | 50.0 |
+| exp5_rank_32 | 2e-4 | 32 | 3 | 36.9 | 5.3 | 21.2 | 2.10 | 10.8 | 33.6 | 26.2 | 57.1 |
+| exp6_epochs_5 | 2e-4 | 16 | 5 | 18.5 | 8.7 | 21.8 | 2.36 | 13.4 | **34.8** | 27.0 | 50.0 |
+
+`exp3` had the best ROUGE-L and was selected. Five epochs (`exp6`) lowered the training loss but raised the
+validation loss, a sign of overfitting on 513 pairs.
+
+| | |
+|---|---|
+| ![Questions per category and language](docs/results/data_categories.png) | ![Answer length in tokens](docs/results/data_tokens.png) |
+| ![Model architecture with LoRA](docs/results/model_architecture.png) | ![Referral confusion matrix](docs/results/referral_confusion.png) |
+
 The app adds rule-based safety on top of the model: urgent danger signs never reach the model, and
 Kinyarwanda answers come only from native-speaker-reviewed pairs ([why](docs/kinyarwanda.md)).
 
