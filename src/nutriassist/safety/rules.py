@@ -50,6 +50,12 @@ RULES: tuple[DangerRule, ...] = (
         r"passed out", r"\bfaint(?:ed|ing|s)?\b", r"\blethargic", r"\bfloppy\b",
         r"yataye ubwenge", r"\bata ubwenge", r"\bntiyumva\b", r"ntakanguka", r"yaguye igihumure",
     ),)),
+    DangerRule("very_sleepy", URGENT, "very sleepy or hard to wake", "gusinzira cyane cyangwa kudakanguka", (_any(
+        # "Sleepy after feeds" is normal, so it is not a danger sign.
+        r"(?:very|unusually|too|extremely|abnormally) (?:sleepy|drowsy)(?! after)", r"(?:hard|difficult) to wake",
+        r"(?:won't|will not|cannot|can't) stay awake",
+        r"sinzira cyane\b", r"\bntakangurwa\b",
+    ),)),
     DangerRule("vomits_everything", URGENT, "vomiting everything", "kuruka ibintu byose", (_any(
         r"vomit\w* (?:everything|all)", r"throws? up (?:everything|every)",
         r"(?:can't|cannot|can not) keep (?:anything|food|milk) down",
@@ -57,8 +63,9 @@ RULES: tuple[DangerRule, ...] = (
     ),)),
     DangerRule("cannot_drink", URGENT, "unable to drink or breastfeed", "kunanirwa kunywa cyangwa konka", (_any(
         # The child must be the subject: "a mother cannot breastfeed" is a feeding question, not a danger sign.
-        r"(?:child|baby|infant|toddler|son|daughter|\bhe|\bshe)[^.?!]{0,20}"
-        r"(?:cannot|can't|unable to|not able to|won't|will not|refuses to|stopped) "
+        # Up to 60 characters may separate them ("my baby has diarrhoea and won't drink"), but not "I" or the mother.
+        r"(?:child|baby|infant|toddler|son|daughter|\bhe|\bshe)(?:(?!\bi\b|\bmother|\bmom|\bmum|\bwife)[^.?!]){0,60}"
+        r"(?:cannot|can't|unable to|not able to|won't|will not|refuses to|stopped|doesn't want to|does not want to) "
         r"(?:drink|breastfeed|breast feed|suck|nurse)",
         r"not (?:drinking|breastfeeding|sucking) (?:at all|anything)",
         r"ntashobora (?:konka|kunywa)", r"\bntiyonka\b", r"yanze konka", r"\bntakonka\b", r"\bntanywa\b",

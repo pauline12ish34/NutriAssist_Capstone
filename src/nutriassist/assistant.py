@@ -2,6 +2,8 @@
 
     question ─► language ─► danger signs? ── urgent ──► fixed referral message (model skipped)
                                  │
+                                 ├─ about honey ──► fixed honey message (model skipped)
+                                 │
                                  └─ none / medical ─► matches a reviewed question? ── yes ──► reviewed answer
                                                                   │
                                                                   no
@@ -47,6 +49,9 @@ _DOSE = re.compile(
     r"|\b(?:mg|ml|ibinini)\s*\d+(?:[.,]\d+)?\b",
     re.IGNORECASE,
 )
+_HONEY = re.compile(r"\bhoney\b|\bubuki\b", re.IGNORECASE)
+# An answer that mentions honey must also give the age limit, or the fixed honey message is added.
+_HONEY_AGE_LIMIT = re.compile(r"\b12 months\b|\b(?:1|one) year\b|\bfirst year\b|\bmezi 12\b", re.IGNORECASE)
 
 
 class ReplySource(str, Enum):
@@ -109,6 +114,8 @@ class NutritionAssistant:
             urgent_signs = [s.label_rw if lang == "rw" else s.label_en for s in safety.signs if s.level is SafetyLevel.URGENT]
             answer = messages.URGENT[lang].format(signs=messages.join_signs(urgent_signs, lang))
             source = ReplySource.SAFETY_RULE
+        elif _HONEY.search(question):
+            answer, source = messages.HONEY[lang], ReplySource.SAFETY_RULE
         elif self.knowledge is not None and (match := self.knowledge.find(question, lang)) is not None:
             answer, source = match.pair.answer, ReplySource.REVIEWED
         elif lang in self.reviewed_only:
@@ -119,6 +126,8 @@ class NutritionAssistant:
             translated = lang == KINYARWANDA and self.translator is not None
             answer = self._translated_answer(question) if translated else self._model_answer(question)
             source = ReplySource.MODEL
+            if _HONEY.search(answer) and not _HONEY_AGE_LIMIT.search(answer):
+                answer = f"{answer}\n\n{messages.HONEY[lang]}"
             if safety.needs_health_worker:
                 answer, source = self._check_medical_answer(answer, safety, lang)
 

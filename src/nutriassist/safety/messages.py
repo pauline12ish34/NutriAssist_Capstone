@@ -41,6 +41,20 @@ DOSE_BLOCKED = {
 }
 
 
+# Shown for any question about honey: the fine-tuned model has said honey is safe from 1 month.
+HONEY = {
+    "en": ("Do not give honey to a baby under 12 months, not even a little or mixed into porridge or tea. Honey "
+           "can carry germs that cause infant botulism, a rare but serious illness, and a young baby's gut cannot "
+           "fight them. From 12 months, a small amount of honey is safe. If a baby under 12 months has eaten honey "
+           "and becomes weak, floppy, constipated or feeds poorly, go to the health centre straight away."),
+    "rw": ("Ntugahe ubuki umwana utarageza ku mezi 12, habe na buke cyangwa buvanze n'igikoma cyangwa icyayi. "
+           "Ubuki bushobora kugira mikorobe zitera indwara ikomeye yitwa botulisme, kandi amara y'umwana muto "
+           "ntashobora kuzirwanya. Guhera ku mezi 12, ubuki buke nta kibazo butera. Niba umwana utarageza ku "
+           "mezi 12 yariye ubuki agacika intege, akananirwa kwituma cyangwa akonka nabi, mujyane ku kigo "
+           "nderabuzima ako kanya."),
+}
+
+
 # NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
 # Shown when a question in a reviewed-only language (Kinyarwanda in the app) matches no reviewed answer.
 NO_MATCH = {

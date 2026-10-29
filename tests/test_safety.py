@@ -42,6 +42,10 @@ class TestDangerSignDetector:
         ("My toddler refuses all food for days", "not_eating_for_days"),
         ("Umwana wanjye amaze iminsi ibiri atarya", "not_eating_for_days"),
         ("His skin is peeling", "skin_lesions"),
+        ("My child has had diarrhoea for 3 days and is very sleepy and won't drink.", "cannot_drink"),
+        ("My child has had diarrhoea for 3 days and is very sleepy and won't drink.", "very_sleepy"),
+        ("My baby has a cold and doesn't want to breastfeed", "cannot_drink"),
+        ("She is hard to wake this morning", "very_sleepy"),
     ])
     def test_urgent_signs_in_both_languages(self, detector, message, sign):
         result = detector.assess(message)
@@ -66,6 +70,8 @@ class TestDangerSignDetector:
         "My child is not vomiting everything, only once after lunch",   # negation
         "What if a mother cannot breastfeed?",                         # the mother, not the child
         "How do I make porridge thicker?",
+        "My baby is 5 months old and I can't breastfeed at work",      # the mother, further from "baby"
+        "My baby is very sleepy after feeds, is that normal?",
     ])
     def test_ordinary_questions_are_not_flagged(self, detector, message):
         assert detector.assess(message).level is SafetyLevel.NONE
@@ -119,6 +125,27 @@ class TestNutritionAssistant:
         model = ScriptedChatModel(lambda q: "Take her to the health centre; keep breastfeeding.")
         reply = NutritionAssistant(model).ask("My child has a fever, what should she eat?")
         assert reply.source is ReplySource.MODEL
+
+    @pytest.mark.parametrize("question, lang", [
+        ("Is it safe to give honey to my 4 month old baby?", "en"),
+        ("Nshobora guha ubuki umwana wanjye w'amezi 4?", "rw"),
+    ])
+    def test_honey_questions_get_the_fixed_answer(self, question, lang):
+        model = ScriptedChatModel(lambda q: "Honey is safe from 1 month.")
+        reply = NutritionAssistant(model).ask(question)
+        assert model.calls == []
+        assert reply.source is ReplySource.SAFETY_RULE and reply.language == lang
+        assert "12" in reply.answer and "1 month" not in reply.answer
+
+    def test_honey_note_is_added_when_the_model_leaves_out_the_age_limit(self):
+        model = ScriptedChatModel(lambda q: "Sweeten the porridge with a little honey or mashed banana.")
+        reply = NutritionAssistant(model).ask("How can I make porridge tastier for my 7-month-old?")
+        assert reply.answer.startswith("Sweeten") and "under 12 months" in reply.answer
+
+    def test_honey_note_is_not_repeated_when_the_model_gives_the_age_limit(self):
+        answer = "Never give honey before 12 months. Add mashed banana instead."
+        reply = NutritionAssistant(ScriptedChatModel(lambda q: answer)).ask("How can I sweeten porridge?")
+        assert reply.answer == answer
 
     @pytest.mark.parametrize("question", ["", "   ", "x" * 1001])
     def test_invalid_questions(self, question):
