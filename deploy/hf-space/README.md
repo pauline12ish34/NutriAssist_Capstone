@@ -6,7 +6,7 @@ colorTo: yellow
 sdk: docker
 app_port: 7860
 pinned: false
-short_description: Child-nutrition assistant for Rwanda in English and Kinyarwanda
+short_description: Child nutrition advice for Rwanda, English and Kinyarwanda
 ---
 
 # NutriAssist-RW
