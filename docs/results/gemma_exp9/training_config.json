@@ -1,0 +1,17 @@
+{
+  "name": "exp9_gemma3_4b",
+  "base_model": "unsloth/gemma-3-4b-it",
+  "learning_rate": 0.0002,
+  "lora_rank": 16,
+  "lora_alpha_ratio": 2.0,
+  "lora_dropout": 0.05,
+  "epochs": 3,
+  "batch_size": 4,
+  "grad_accum": 4,
+  "warmup_ratio": 0.05,
+  "max_length": 768,
+  "save_steps": 10,
+  "seed": 42,
+  "lora_alpha": 32,
+  "effective_batch_size": 16
+}

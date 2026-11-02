@@ -1,0 +1,18 @@
+{
+  "experiment": "exp9_gemma3_4b",
+  "base_model": "unsloth/gemma-3-4b-it",
+  "learning_rate": 0.0002,
+  "lora_rank": 16,
+  "lora_alpha": 32,
+  "epochs": 3,
+  "effective_batch_size": 16,
+  "trainable_params_M": 29.8,
+  "trainable_%": 0.688,
+  "train_minutes": 8.0,
+  "peak_gpu_allocated_GB": 16.66,
+  "peak_gpu_reserved_GB": 38.69,
+  "train_loss": 1.5271,
+  "val_loss": 1.8426,
+  "gpu": "NVIDIA A100-SXM4-40GB",
+  "sessions": 1
+}

@@ -5,6 +5,7 @@ import pytest
 from conftest import PROCESSED_QA
 from nutriassist.assistant import InvalidQuestion, NutritionAssistant, ReplySource
 from nutriassist.inference.scripted import ScriptedChatModel
+from nutriassist.safety import messages
 from nutriassist.safety.detector import DangerSignDetector
 from nutriassist.safety.rules import SafetyLevel
 
@@ -146,6 +147,25 @@ class TestNutritionAssistant:
         answer = "Never give honey before 12 months. Add mashed banana instead."
         reply = NutritionAssistant(ScriptedChatModel(lambda q: answer)).ask("How can I sweeten porridge?")
         assert reply.answer == answer
+
+    @pytest.mark.parametrize("question, lang", [
+        ("umwana wamezi 10 yanywa icyayi", "rw"),          # the question Gemma answered "Yego" on the Space
+        ("Nshobora guha icyayi umwana wanjye muto?", "rw"),
+        ("Can I give my 8-month-old baby tea?", "en"),
+    ])
+    def test_tea_for_a_child_gets_the_reviewed_tea_answer_without_the_model(self, question, lang):
+        model = ScriptedChatModel(lambda q: "Yes, tea is fine.")
+        reply = NutritionAssistant(model).ask(question)
+        assert reply.source is ReplySource.SAFETY_RULE and reply.answer == messages.TEA[lang] and model.calls == []
+
+    @pytest.mark.parametrize("question", ["Can a pregnant woman drink tea?", "Ese umugore utwite yanywa icyayi?"])
+    def test_tea_for_a_mother_still_goes_to_the_model(self, question):
+        reply = NutritionAssistant(ScriptedChatModel(lambda q: "One or two cups a day.")).ask(question)
+        assert reply.source is ReplySource.MODEL
+
+    def test_tea_rule_text_is_the_reviewed_answer(self):
+        rows = {r["id"]: r for r in map(json.loads, open("data/QA_data/processed/qa_master.jsonl", encoding="utf-8"))}
+        assert messages.TEA == {"en": rows["en-feed-13"]["answer"], "rw": rows["rw-feed-13"]["answer"]}
 
     @pytest.mark.parametrize("question", ["", "   ", "x" * 1001])
     def test_invalid_questions(self, question):

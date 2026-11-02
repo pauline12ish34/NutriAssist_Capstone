@@ -55,6 +55,32 @@ HONEY = {
 }
 
 
+# Shown for a question about tea for a child: on the Space, Gemma answered "Yego" (yes) to tea for a
+# 10-month-old. The text is the reviewed pair en-feed-13 / rw-feed-13 (Kinyarwanda approved by a native speaker).
+TEA = {
+    "en": ("It is best not to give tea or coffee to young children. Tea fills the stomach without giving much "
+           "nutrition, and it reduces the iron the body takes from food, which can lead to anaemia. If older "
+           "children drink tea, give it between meals, not with food. Better drinks are breast milk, clean water "
+           "and milk or ikivuguto."),
+    "rw": ("Ni byiza kutaha abana bato icyayi cyangwa ikawa. Icyayi cyuzuza igifu ariko nta ntungamubiri nyinshi "
+           "gitanga, kandi kibuza umubiri gukura ubutare mu biryo, bishobora gutera kubura amaraso. Niba abana "
+           "bakuru banywa icyayi, bakinywe hagati y'amafunguro, si kumwe n'ibiryo. Ibyo kunywa byiza ni "
+           "amashereka, amazi meza n'amata cyangwa ikivuguto."),
+}
+
+
+# NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
+# Shown when a question is not close to any reviewed question (RelevanceChecker.in_scope): not the app's topic.
+OUT_OF_SCOPE = {
+    "en": ("I can only help with nutrition for children under 5 and for pregnant and breastfeeding mothers. "
+           "For other questions, please ask someone who can help, or for health problems your community health "
+           "worker or the health centre."),
+    "rw": ("Nshobora gufasha gusa ku bijyanye n'imirire y'abana bari munsi y'imyaka 5 n'iy'ababyeyi batwite "
+           "cyangwa bonsa. Ku bindi bibazo, baza undi ushobora kugufasha, naho ku bibazo by'ubuzima, baza "
+           "umujyanama w'ubuzima cyangwa ujye ku kigo nderabuzima."),
+}
+
+
 # NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
 # Shown when a question in a reviewed-only language (Kinyarwanda in the app) matches no reviewed answer.
 NO_MATCH = {

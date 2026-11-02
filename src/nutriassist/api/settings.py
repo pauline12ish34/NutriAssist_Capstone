@@ -51,6 +51,7 @@ class Settings:
     kinyarwanda: str = "translate"
     translator: str = "gemini"              # for "translate": "gemini" (online, the app's) or "nllb" (offline)
     grounding: int = 0                      # RAG: closest reviewed pairs put in the model's prompt (0: off)
+    checks: bool = True                     # scope and answer-relevance checks, meaning-based topic rules (LaBSE)
     unanswered_log: Path | None = Path("logs/unanswered.jsonl")   # questions with no reviewed answer
 
     @classmethod
@@ -71,6 +72,7 @@ class Settings:
             kinyarwanda=env("NUTRIASSIST_KINYARWANDA", cls.kinyarwanda).lower(),
             translator=env("NUTRIASSIST_TRANSLATOR", cls.translator).lower(),
             grounding=int(env("NUTRIASSIST_GROUNDING", cls.grounding)),
+            checks=env("NUTRIASSIST_CHECKS", "on").lower() in {"on", "1", "true", "yes"},
             unanswered_log=_optional_path(env("NUTRIASSIST_UNANSWERED_LOG", str(cls.unanswered_log))),
         )
 
@@ -97,22 +99,43 @@ def build_knowledge_base(settings: Settings) -> KnowledgeBase | None:
     return KnowledgeBase.load(settings.knowledge_path, embedder, settings.match_threshold)
 
 
-def build_example_index(settings: Settings) -> KnowledgeBase | None:
-    """For grounding (RAG): the reviewed pairs searched by meaning in both languages (LaBSE).
-
-    ``None`` (examples then come from the character index) when grounding is off, the file is missing
-    or ``sentence-transformers`` is not installed.
-    """
-    if not settings.grounding or settings.knowledge_path is None or not settings.knowledge_path.exists():
+def build_embedder(settings: Settings):
+    """LaBSE, loaded once for the grounding examples and the checks; ``None`` if neither is on or the
+    package is missing (both then fall back: examples by characters, no scope or relevance check)."""
+    if not (settings.grounding or settings.checks):
         return None
     try:
         from ..knowledge import SentenceEmbedder
 
-        embedder = SentenceEmbedder()
+        return SentenceEmbedder()
     except ImportError:
-        log.warning("sentence-transformers is not installed: grounding examples are found by characters only")
+        log.warning("sentence-transformers is not installed: no meaning-based examples or answer checks")
+        return None
+
+
+def build_example_index(settings: Settings, embedder=None) -> KnowledgeBase | None:
+    """For grounding (RAG): the reviewed pairs searched by meaning in both languages (LaBSE).
+
+    ``None`` (examples then come from the character index) when grounding is off, the file is missing
+    or there is no embedder.
+    """
+    if not settings.grounding or embedder is None or settings.knowledge_path is None \
+            or not settings.knowledge_path.exists():
         return None
     return KnowledgeBase.load(settings.knowledge_path, embedder, settings.match_threshold, letters_weight=0.0)
+
+
+def build_checks(settings: Settings, embedder=None):
+    """The topic rules (meaning matching with an embedder) and the scope and answer-relevance checker."""
+    from ..knowledge import load_pairs
+    from ..safety.relevance import RelevanceChecker
+    from ..safety.topics import TopicRules
+
+    if not settings.checks or embedder is None:
+        return TopicRules(), None
+    path = settings.knowledge_path
+    questions = [w for _, wordings in load_pairs(path) for w in wordings] if path and path.exists() else []
+    return TopicRules(embedder=embedder), (RelevanceChecker(embedder, questions) if questions else None)
 
 
 KINYARWANDA_MODES = ("reviewed", "translate", "model")

@@ -130,13 +130,13 @@ class TestTranslation:
 class TestAssistantWithReviewedAnswers:
     def make(self, translator=None, responder=lambda q: "Give mashed beans."):
         model = ScriptedChatModel(responder)
-        kb = KnowledgeBase([(pair("Nshobora guha icyayi umwana wanjye muto?", "Oya, icyayi si cyiza ku bana bato."),
-                             ["Nshobora guha icyayi umwana wanjye muto?"])], key_terms=KeyTerms.load())
+        kb = KnowledgeBase([(pair("Nshobora guha ikawa umwana wanjye muto?", "Oya, ikawa si nziza ku bana bato."),
+                             ["Nshobora guha ikawa umwana wanjye muto?"])], key_terms=KeyTerms.load())
         return NutritionAssistant(model, knowledge=kb, translator=translator), model
 
     def test_matching_question_gets_the_reviewed_answer_without_the_model(self):
         assistant, model = self.make()
-        reply = assistant.ask("Nshobora guha icyayi umwana wanjye muto?")
+        reply = assistant.ask("Nshobora guha ikawa umwana wanjye muto?")
         assert reply.source is ReplySource.REVIEWED and reply.answer.startswith("Oya")
         assert reply.matched_question and reply.model_name == "reviewed answers" and model.calls == []
 
@@ -165,9 +165,9 @@ class TestAssistantWithReviewedAnswers:
                 raise ConnectionError("503 UNAVAILABLE")
 
         assistant, model = self.make(BusyTranslator())
-        reply = assistant.ask("Nshobora guha umwana wanjye icyayi n'amata?")
+        reply = assistant.ask("Nshobora guha umwana wanjye ikawa n'amata?")
         assert reply.source is ReplySource.NO_MATCH and not reply.translated and model.calls == []
-        assert reply.suggestions == ["Nshobora guha icyayi umwana wanjye muto?"]
+        assert reply.suggestions == ["Nshobora guha ikawa umwana wanjye muto?"]
 
     def test_grounding_puts_the_closest_reviewed_pairs_in_the_prompt(self):
         class RecordingModel(ScriptedChatModel):
@@ -175,13 +175,13 @@ class TestAssistantWithReviewedAnswers:
                 self.prompts = [list(c) for c in conversations]
                 return super().generate_batch(conversations)
 
-        model = RecordingModel(lambda q: "Oya, ntukamuhe icyayi.")
-        kb = KnowledgeBase([(pair("Nshobora guha icyayi umwana wanjye muto?", "Oya, icyayi si cyiza ku bana bato."),
-                             ["Nshobora guha icyayi umwana wanjye muto?"])], key_terms=KeyTerms.load())
-        reply = NutritionAssistant(model, knowledge=kb, grounding=3).ask("Icyayi cyaba kibi ku mwana w'amezi 7?")
+        model = RecordingModel(lambda q: "Oya, ntukamuhe ikawa.")
+        kb = KnowledgeBase([(pair("Nshobora guha ikawa umwana wanjye muto?", "Oya, ikawa si nziza ku bana bato."),
+                             ["Nshobora guha ikawa umwana wanjye muto?"])], key_terms=KeyTerms.load())
+        reply = NutritionAssistant(model, knowledge=kb, grounding=3).ask("Ikawa yaba mbi ku mwana w'amezi 7?")
         system = model.prompts[0][0]["content"]
-        assert reply.source is ReplySource.MODEL and "Oya, icyayi si cyiza ku bana bato." in system
-        assert model.prompts[0][1] == {"role": "user", "content": "Icyayi cyaba kibi ku mwana w'amezi 7?"}
+        assert reply.source is ReplySource.MODEL and "Oya, ikawa si nziza ku bana bato." in system
+        assert model.prompts[0][1] == {"role": "user", "content": "Ikawa yaba mbi ku mwana w'amezi 7?"}
 
     def test_without_grounding_the_prompt_is_the_trained_one(self):
         assert build_grounded_messages("Q?", []) == build_messages("Q?")

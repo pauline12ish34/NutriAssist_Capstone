@@ -4,6 +4,8 @@
                                  │
                                  ├─ about honey ──► fixed honey message (model skipped)
                                  │
+                                 ├─ tea for a child ──► reviewed tea answer (model skipped)
+                                 │
                                  └─ none / medical ─► matches a reviewed question? ── yes ──► reviewed answer
                                                                   │
                                                                   no
@@ -40,7 +42,9 @@ from .prompts import SYSTEM_PROMPT, build_grounded_messages, build_messages
 from .safety import messages
 from .safety.detector import DangerSignDetector, SafetyAssessment
 from .safety.referral import ReferralDetector
+from .safety.relevance import RelevanceChecker
 from .safety.rules import SafetyLevel
+from .safety.topics import TopicRules
 from .translation import Translator, strip_foreign_script, translate_text
 
 log = logging.getLogger("nutriassist.assistant")
@@ -53,9 +57,6 @@ _DOSE = re.compile(
     r"|\b(?:mg|ml|ibinini)\s*\d+(?:[.,]\d+)?\b",
     re.IGNORECASE,
 )
-_HONEY = re.compile(r"\bhoney\b|\bubuki\b", re.IGNORECASE)
-# An answer that mentions honey must also give the age limit, or the fixed honey message is added.
-_HONEY_AGE_LIMIT = re.compile(r"\b12 months\b|\b(?:1|one) year\b|\bfirst year\b|\bmezi 12\b", re.IGNORECASE)
 
 
 class ReplySource(str, Enum):
@@ -63,8 +64,11 @@ class ReplySource(str, Enum):
     NO_MATCH = "no_reviewed_answer"              # reviewed-only language, no match: fixed message and suggestions
     MODEL = "model"                              # the model's answer, unchanged
     MODEL_WITH_REFERRAL = "model+referral_note"  # the model's answer, plus a referral it had left out
-    SAFETY_RULE = "safety_rule"                  # urgent danger sign: fixed message, model not called
+    SAFETY_RULE = "safety_rule"                  # urgent danger sign or topic rule: fixed message, model not called
     DOSE_BLOCKED = "dose_blocked"                # the model gave a medicine dose: replaced
+    TOPIC_REPLACED = "topic_rule_on_answer"      # the model's answer was on a rule's topic (tea): replaced
+    OUT_OF_SCOPE = "out_of_scope"                # not close to any reviewed question: the model not called
+    OFF_TOPIC = "off_topic_blocked"              # the model's answer was not about the question: not shown
 
 
 @dataclass(frozen=True)
@@ -92,7 +96,8 @@ class NutritionAssistant:
                  language: LanguageDetector | None = None, referrals: ReferralDetector | None = None,
                  system_prompt: str = SYSTEM_PROMPT, knowledge: KnowledgeBase | None = None,
                  translator: Translator | None = None, reviewed_only: Iterable[str] = (),
-                 grounding: int = 0, examples: KnowledgeBase | None = None) -> None:
+                 grounding: int = 0, examples: KnowledgeBase | None = None,
+                 topics: TopicRules | None = None, checker: RelevanceChecker | None = None) -> None:
         self.model = model
         self.detector = detector or DangerSignDetector()
         self.language = language or LanguageDetector()
@@ -105,6 +110,9 @@ class NutritionAssistant:
         # Where the examples come from: a meaning-based index finds on-topic examples twice as often as
         # character matching (docs/kinyarwanda.md), but matching for direct answers stays on characters.
         self.examples = examples
+        self.topics = topics or TopicRules()   # honey, tea: keywords always; meaning too with an embedder
+        # Scope and answer-relevance checks (LaBSE); without one, every in-language question goes to the model.
+        self.checker = checker
         # Languages answered only from reviewed answers: the model never writes them.
         self.reviewed_only = frozenset(reviewed_only)
         if self.reviewed_only and knowledge is None:
@@ -124,21 +132,23 @@ class NutritionAssistant:
             urgent_signs = [s.label_rw if lang == "rw" else s.label_en for s in safety.signs if s.level is SafetyLevel.URGENT]
             answer = messages.URGENT[lang].format(signs=messages.join_signs(urgent_signs, lang))
             source = ReplySource.SAFETY_RULE
-        elif _HONEY.search(question):
-            answer, source = messages.HONEY[lang], ReplySource.SAFETY_RULE
+        elif (rule := self.topics.for_question(question)) is not None:
+            answer, source = rule.message[lang], ReplySource.SAFETY_RULE
         elif self.knowledge is not None and (match := self.knowledge.find(question, lang)) is not None:
             answer, source = match.pair.answer, ReplySource.REVIEWED
-        elif lang in self.reviewed_only or (answer := self._generated_answer(question, lang)) is None:
-            suggestions = [m.pair.question for m in self.knowledge.suggest(question, lang)]
-            answer = (messages.NO_MATCH if suggestions else messages.NO_MATCH_NO_SUGGESTIONS)[lang]
-            source = ReplySource.NO_MATCH
+        elif self.checker is not None and not self.checker.in_scope(question):
+            answer, source = messages.OUT_OF_SCOPE[lang], ReplySource.OUT_OF_SCOPE
         else:
-            translated = lang == KINYARWANDA and self.translator is not None
-            source = ReplySource.MODEL
-            if _HONEY.search(answer) and not _HONEY_AGE_LIMIT.search(answer):
-                answer = f"{answer}\n\n{messages.HONEY[lang]}"
-            if safety.needs_health_worker:
-                answer, source = self._check_medical_answer(answer, safety, lang)
+            result = ReplySource.NO_MATCH if lang in self.reviewed_only else self._generated_answer(question, lang)
+            if isinstance(result, ReplySource):   # reviewed-only, translator down, or the answer was off topic
+                answer, suggestions = self._no_answer(question, lang)
+                source = result
+            else:
+                answer, source = result, ReplySource.MODEL
+                translated = lang == KINYARWANDA and self.translator is not None
+                answer, source = self._check_topic_rules(question, answer, lang)
+                if safety.needs_health_worker and source is ReplySource.MODEL:
+                    answer, source = self._check_medical_answer(answer, safety, lang)
 
         return AssistantReply(
             answer=answer,
@@ -153,21 +163,43 @@ class NutritionAssistant:
             suggestions=suggestions,
         )
 
-    def _generated_answer(self, question: str, lang: str) -> str | None:
+    def _generated_answer(self, question: str, lang: str) -> str | ReplySource:
         """The model's answer, through translation for Kinyarwanda when a translator is set.
 
-        ``None`` when the translator fails (Gemini is online and can be busy or unreachable) and reviewed
-        answers exist: the caller then offers the closest reviewed questions instead of an error.
+        Instead of an answer, the reason there is none: ``NO_MATCH`` when the translator fails (Gemini is
+        online and can be busy or unreachable) and reviewed answers exist, ``OFF_TOPIC`` when the answer
+        is not about the question. The caller then offers the closest reviewed questions.
         """
         if lang != KINYARWANDA or self.translator is None:
-            return self._model_answer(question, lang)
+            answer = self._model_answer(question, lang)
+            return answer if self._on_topic(question, answer) else ReplySource.OFF_TOPIC
         try:
             return self._translated_answer(question)
         except Exception:
             if self.knowledge is None:
                 raise
             log.warning("Translation failed; offering reviewed questions instead", exc_info=True)
-            return None
+            return ReplySource.NO_MATCH
+
+    def _on_topic(self, question: str, answer: str) -> bool:
+        if self.checker is None or self.checker.on_topic(question, answer):
+            return True
+        log.info("Answer blocked as off topic: %r", question)
+        return False
+
+    def _no_answer(self, question: str, lang: str) -> tuple[str, list[str]]:
+        """The "no checked answer" message and the closest reviewed questions as suggestions."""
+        suggestions = [m.pair.question for m in self.knowledge.suggest(question, lang)] if self.knowledge else []
+        return (messages.NO_MATCH if suggestions else messages.NO_MATCH_NO_SUGGESTIONS)[lang], suggestions
+
+    def _check_topic_rules(self, question: str, answer: str, lang: str) -> tuple[str, ReplySource]:
+        """A model answer on a rule's topic (honey, tea for a child) gets the fixed message."""
+        rule = self.topics.for_answer(question, answer)
+        if rule is None:
+            return answer, ReplySource.MODEL
+        if rule.on_answer == "append":
+            return f"{answer}\n\n{rule.message[lang]}", ReplySource.MODEL
+        return rule.message[lang], ReplySource.TOPIC_REPLACED
 
     def _model_answer(self, question: str, lang: str) -> str:
         # Qwen occasionally slips in a Chinese word ("colds (感冒)"); caregivers cannot read it.
@@ -183,15 +215,20 @@ class NutritionAssistant:
         return build_grounded_messages(question, [(m.pair.question, m.pair.answer) for m in examples],
                                        system_prompt=self.system_prompt)
 
-    def _translated_answer(self, question: str) -> str:
+    def _translated_answer(self, question: str) -> str | ReplySource:
         english_question = translate_text(self.translator, question, KINYARWANDA, ENGLISH)
         english_answer = self._model_answer(english_question, ENGLISH)
+        # Checked in English, which LaBSE knows best, and before translating back: no Gemini call is wasted.
+        if not self._on_topic(english_question, english_answer):
+            return ReplySource.OFF_TOPIC
         return translate_text(self.translator, english_answer, ENGLISH, KINYARWANDA)
 
     def _answered_by(self, source: ReplySource, translated: bool) -> str:
-        if source is ReplySource.SAFETY_RULE:
+        if source in (ReplySource.SAFETY_RULE, ReplySource.TOPIC_REPLACED):
             return "rules"
-        if source in (ReplySource.REVIEWED, ReplySource.NO_MATCH):
+        if source is ReplySource.OUT_OF_SCOPE:
+            return "checks"
+        if source in (ReplySource.REVIEWED, ReplySource.NO_MATCH, ReplySource.OFF_TOPIC):
             return "reviewed answers"
         return f"{self.model.name} + {self.translator.name}" if translated else self.model.name
 

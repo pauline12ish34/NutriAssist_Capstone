@@ -1,0 +1,100 @@
+"""Topic rules on questions and answers, and the scope and answer-relevance checks."""
+
+import pytest
+
+from nutriassist.assistant import NutritionAssistant, ReplySource
+from nutriassist.inference.scripted import ScriptedChatModel
+from nutriassist.knowledge import KnowledgeBase, ReviewedPair
+from nutriassist.safety import messages
+from nutriassist.safety.topics import TopicRules
+
+
+class FakeChecker:
+    """Stands in for RelevanceChecker (LaBSE): fixed answers to the two checks."""
+
+    def __init__(self, in_scope=True, on_topic=True):
+        self._in_scope, self._on_topic = in_scope, on_topic
+        self.answer_checks = []
+
+    def in_scope(self, question):
+        return self._in_scope
+
+    def on_topic(self, question, answer):
+        self.answer_checks.append((question, answer))
+        return self._on_topic
+
+
+class FakeTranslator:
+    name = "fake-mt"
+
+    def __init__(self):
+        self.calls = []
+
+    def translate(self, texts, source, target):
+        self.calls.append((source, target))
+        return [f"[{target}] {t}" for t in texts]
+
+
+def knowledge():
+    pair = ReviewedPair("p", "rw", "c", "Nshobora guha ikawa umwana wanjye muto?", "Oya.")
+    return KnowledgeBase([(pair, [pair.question])])
+
+
+@pytest.mark.parametrize("question", [
+    "Uruhinja rwanjye rwanywa icyai?", "Umwana w'umwaka umwe yahabwa chai?", "Ese nshobora guha akana kanjye icyayi?",
+    "Is tea ok at 9 months?", "Can my little one have a cup of tea?", "Ese icyayi ni kibi ku bana?",
+])
+def test_tea_rewordings_that_slipped_past_the_first_rule_are_caught(question):
+    assert TopicRules().for_question(question).key == "tea"
+
+
+def test_tea_for_a_mother_is_not_a_child_rule():
+    assert TopicRules().for_question("Ese umugore utwite yanywa icyayi?") is None
+
+
+def test_a_model_answer_about_tea_for_a_child_is_replaced():
+    model = ScriptedChatModel(lambda q: "Yego. Icyayi cyuzuza umubiri n'amavuta.")
+    reply = NutritionAssistant(model).ask("Umwana w'amezi 10 yanywa iki?")
+    assert reply.source is ReplySource.TOPIC_REPLACED and reply.answer == messages.TEA["rw"]
+
+
+def test_a_model_answer_mentioning_honey_without_the_age_limit_gets_the_honey_message_added():
+    model = ScriptedChatModel(lambda q: "Sweeten the porridge with honey.")
+    reply = NutritionAssistant(model).ask("How can I make porridge tastier for my baby?")
+    assert reply.answer.startswith("Sweeten") and reply.answer.endswith(messages.HONEY["en"])
+
+
+def test_out_of_scope_questions_are_declined_without_the_model():
+    model = ScriptedChatModel(lambda q: "Restart the phone.")
+    reply = NutritionAssistant(model, checker=FakeChecker(in_scope=False)).ask("How do I fix my phone screen?")
+    assert reply.source is ReplySource.OUT_OF_SCOPE and reply.answer == messages.OUT_OF_SCOPE["en"]
+    assert model.calls == []
+
+
+def test_danger_signs_come_before_the_scope_check():
+    reply = NutritionAssistant(ScriptedChatModel(), checker=FakeChecker(in_scope=False)).ask("Umwana wanjye aragagara")
+    assert reply.source is ReplySource.SAFETY_RULE
+
+
+def test_an_off_topic_answer_is_not_shown():
+    model = ScriptedChatModel(lambda q: "Breastfeed every 2 to 3 hours.")
+    reply = NutritionAssistant(model, knowledge=knowledge(), checker=FakeChecker(on_topic=False)).ask(
+        "What foods help my child have enough blood?")
+    assert reply.source is ReplySource.OFF_TOPIC and "Breastfeed" not in reply.answer
+    assert reply.answer in (messages.NO_MATCH["en"], messages.NO_MATCH_NO_SUGGESTIONS["en"])
+
+
+def test_in_the_translation_route_the_check_runs_in_english_before_translating_back():
+    translator, checker = FakeTranslator(), FakeChecker(on_topic=False)
+    assistant = NutritionAssistant(ScriptedChatModel(lambda q: "Breastfeed often."), knowledge=knowledge(),
+                                   translator=translator, checker=checker)
+    reply = assistant.ask("Ni ibihe biryo bifasha umwana kugira amaraso ahagije?")
+    assert reply.source is ReplySource.OFF_TOPIC and not reply.translated
+    assert translator.calls == [("rw", "en")]                      # no second request to translate the answer back
+    assert checker.answer_checks == [("[en] Ni ibihe biryo bifasha umwana kugira amaraso ahagije?", "Breastfeed often.")]
+
+
+def test_on_topic_answers_pass_unchanged():
+    reply = NutritionAssistant(ScriptedChatModel(lambda q: "Give beans and dark green leaves."),
+                               checker=FakeChecker()).ask("What foods help my child have enough blood?")
+    assert reply.source is ReplySource.MODEL and reply.answer == "Give beans and dark green leaves."

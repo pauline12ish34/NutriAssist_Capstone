@@ -12,8 +12,8 @@ local foods sized for the child's age.
 |---|---|
 | **Repository** | https://github.com/pauline12ish34/NutriAssist_Capstone |
 | **Live app** | https://huggingface.co/spaces/pauline-ish/nutriAssist_Rw (free ZeroGPU Space; the first visit after 48 hours without visitors takes a few minutes to wake up) |
-| **Walkthrough video** | [Watch the demo on YouTube](https://youtu.be/hVc_Zxnya3w) |
-| **Technical report (PDF)** | _add link_ |
+| **Walkthrough video** | [Watch the demo on YouTube](https://drive.google.com/drive/folders/1Lt9xp5sJ1G7Hn1PMMkvfGXrB9uKC6jKV?usp=sharing) |
+| **Technical report (PDF)** | https://docs.google.com/document/d/1BxUJMjiChwt-fdrzl4D_yUkv_gVp7zRuUHOEspxrXbw/edit?usp=sharing |
 | **Training notebook** | [Open in Colab](https://colab.research.google.com/github/pauline12ish34/NutriAssist_Capstone/blob/main/notebooks/nutriassist_training.ipynb) |
 
 > NutriAssist-RW gives general nutrition guidance. It does not diagnose illness or recommend medicines.
@@ -107,7 +107,27 @@ A blinded expert rating (correctness, safety, local relevance, 1–5) of 40 answ
 on 20 English test questions, is prepared with `python -m nutriassist.evaluation.expert_rating build`
 and scored with `... expert_rating analyse <filled sheet>`.
 
-_Gemma-3-4B (`exp9`, the model of the live app): results to be added from the notebook._
+**Gemma-3-4B (`exp9_gemma3_4b`, the model of the live app).** Qwen2.5-1.5B wrote fluent English but
+broken Kinyarwanda (answers that loop or drift off the question), so the online app uses Gemma-3-4B,
+which is pre-trained on more languages. It was trained with the same QLoRA recipe as `exp1_baseline`.
+The numbers below come from the adapter's training logs, published with it on the
+[Hugging Face Hub](https://huggingface.co/pauline-ish/NutritionAssistant_RW/tree/main/adapter)
+(copies in [docs/results/gemma_exp9/](docs/results/gemma_exp9/)).
+
+| Setting / result | Value |
+|---|---|
+| Base model | `unsloth/gemma-3-4b-it` (language model only; image encoder left out), 4-bit QLoRA |
+| Learning rate, LoRA rank / alpha, dropout | 2e-4, 16 / 32, 0.05 |
+| Epochs, effective batch size, max length | 3, 16 (4 × 4 gradient accumulation), 768 tokens |
+| Trainable parameters | 29.8 M (0.69% of the model) |
+| Training time, GPU | 8.0 min on an A100 40 GB (peak allocated memory 16.7 GB) |
+| Training loss after epoch 1 / 2 / 3 | 1.80 / 1.26 / 0.76 |
+| Validation loss after epoch 1 / 2 / 3 | 1.80 / **1.72** / 1.84 |
+
+Validation loss was lowest after epoch 2 and rose in epoch 3 while training loss kept falling, an early
+sign of overfitting on 513 pairs; stopping after 2 epochs is the obvious next run. The test-set metrics
+above were measured on Qwen2.5-1.5B (`exp3_lr_5e-4`); the same test-set evaluation of Gemma-3-4B has not
+been run yet and is the next step (notebook cell 33 with `BEST_EXPERIMENT = "exp9_gemma3_4b"`).
 
 **Hyperparameter experiments** (Qwen2.5-1.5B, QLoRA, validation set; Colab GPU; [CSV](docs/results/experiment_table.csv)).
 Each experiment changes one setting from `exp1_baseline`.

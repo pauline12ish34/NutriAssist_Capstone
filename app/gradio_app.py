@@ -29,8 +29,9 @@ sys.path.insert(0, str(Path(__file__).parent))  # lets this file import texts
 
 import gradio as gr  # noqa: E402
 
-from nutriassist.api.settings import (Settings, build_chat_model, build_example_index, build_knowledge_base,  # noqa: E402
-                                      build_translator, reviewed_only_languages)
+from nutriassist.api.settings import (Settings, build_chat_model, build_checks, build_embedder,  # noqa: E402
+                                      build_example_index, build_knowledge_base, build_translator,
+                                      reviewed_only_languages)
 from nutriassist.assistant import AssistantReply, InvalidQuestion, NutritionAssistant, ReplySource  # noqa: E402
 from nutriassist.inference.base import ChatModel, GenerationSettings  # noqa: E402
 from nutriassist.planner import FoodCatalogue, MealPlanner, PlanRequest  # noqa: E402
@@ -131,14 +132,18 @@ class Services:
         env = os.environ.get
         # Space variables: NUTRIASSIST_KINYARWANDA (translate / model / reviewed) and NUTRIASSIST_GROUNDING (RAG).
         settings = Settings(kinyarwanda=env("NUTRIASSIST_KINYARWANDA", Settings.kinyarwanda).lower(),
-                            grounding=int(env("NUTRIASSIST_GROUNDING", Settings.grounding)))
+                            grounding=int(env("NUTRIASSIST_GROUNDING", Settings.grounding)),
+                            checks=env("NUTRIASSIST_CHECKS", "on").lower() in {"on", "1", "true", "yes"})
         knowledge = build_knowledge_base(settings)
         # Gemini translation needs the Space secret GEMINI_API_KEY; without it Kinyarwanda gets reviewed answers only.
         translator = build_translator(settings) if model is None else None
+        # LaBSE (loaded once) for the grounding examples and the answer checks; tests pass a model and skip it.
+        embedder = build_embedder(settings) if model is None else None
+        topics, checker = build_checks(settings, embedder)
         assistant = NutritionAssistant(model or load_model(), knowledge=knowledge, translator=translator,
                                        reviewed_only=reviewed_only_languages(settings, knowledge, translator),
-                                       grounding=settings.grounding,
-                                       examples=build_example_index(settings) if model is None else None)
+                                       grounding=settings.grounding, examples=build_example_index(settings, embedder),
+                                       topics=topics, checker=checker)
         catalogue = FoodCatalogue.load()
         return cls(assistant, catalogue, MealPlanner(catalogue))
 

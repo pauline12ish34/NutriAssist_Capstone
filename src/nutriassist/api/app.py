@@ -24,8 +24,10 @@ from ..planner import FoodCatalogue, MealPlanner, PlanRequest
 from .schemas import (ChatRequest, ChatResponse, ErrorResponse, FoodOut, HealthResponse, MealPlanRequest,
                       MealPlanResponse)
 from ..translation import Translator
-from .settings import (Settings, build_chat_model, build_example_index, build_knowledge_base, build_translator,
-                       reviewed_only_languages)
+from ..safety.relevance import RelevanceChecker
+from ..safety.topics import TopicRules
+from .settings import (Settings, build_chat_model, build_checks, build_embedder, build_example_index,
+                       build_knowledge_base, build_translator, reviewed_only_languages)
 
 log = logging.getLogger("nutriassist.api")
 
@@ -36,9 +38,11 @@ class Services:
     def __init__(self, model: ChatModel, demo_mode: bool, catalogue: FoodCatalogue,
                  knowledge: KnowledgeBase | None = None, translator: Translator | None = None,
                  reviewed_only: frozenset[str] = frozenset(), unanswered_log: Path | None = None,
-                 grounding: int = 0, examples: KnowledgeBase | None = None) -> None:
+                 grounding: int = 0, examples: KnowledgeBase | None = None,
+                 topics: TopicRules | None = None, checker: RelevanceChecker | None = None) -> None:
         self.assistant = NutritionAssistant(model, knowledge=knowledge, translator=translator,
-                                            reviewed_only=reviewed_only, grounding=grounding, examples=examples)
+                                            reviewed_only=reviewed_only, grounding=grounding, examples=examples,
+                                            topics=topics, checker=checker)
         self.unanswered_log = unanswered_log
         self.demo_mode = demo_mode
         self.catalogue = catalogue
@@ -51,7 +55,8 @@ class Services:
 
         Only the question text, its language and the time are stored: no user or session data.
         """
-        if self.unanswered_log is None or reply.source is not ReplySource.NO_MATCH:
+        if self.unanswered_log is None or reply.source not in (ReplySource.NO_MATCH, ReplySource.OFF_TOPIC,
+                                                                ReplySource.OUT_OF_SCOPE):
             return
         try:
             self.unanswered_log.parent.mkdir(parents=True, exist_ok=True)
@@ -75,18 +80,21 @@ def create_app(settings: Settings | None = None, model: ChatModel | None = None,
         if model is not None:
             chat_model, demo, kb, mt = model, False, knowledge, translator
             only, unanswered, grounding = reviewed_only, unanswered_log, (settings.grounding if settings else 0)
-            examples = None
+            examples, topics, checker = None, None, None
         else:
             config = settings or Settings.from_env()
             chat_model, demo = build_chat_model(config)
             kb, mt = build_knowledge_base(config), build_translator(config)
             only, unanswered = reviewed_only_languages(config, kb, mt), config.unanswered_log
-            grounding, examples = config.grounding, build_example_index(config)
+            embedder = build_embedder(config)
+            grounding, examples = config.grounding, build_example_index(config, embedder)
+            topics, checker = build_checks(config, embedder)
         log.info("Serving model %s (demo mode: %s); reviewed answers: %s; reviewed-only languages: %s; translator: %s; "
-                 "grounding examples: %s", chat_model.name, demo, len(kb) if kb else "off",
-                 ", ".join(sorted(only)) or "none", mt.name if mt else "off", grounding or "off")
+                 "grounding examples: %s; answer checks: %s", chat_model.name, demo, len(kb) if kb else "off",
+                 ", ".join(sorted(only)) or "none", mt.name if mt else "off", grounding or "off",
+                 "on" if checker else "off")
         app.state.services = Services(chat_model, demo, catalogue or FoodCatalogue.load(), kb, mt, only, unanswered,
-                                      grounding, examples)
+                                      grounding, examples, topics, checker)
         yield
 
     app = FastAPI(
