@@ -236,10 +236,28 @@ git clone https://github.com/pauline12ish34/NutriAssist_Capstone.git
 cd NutriAssist_Capstone
 python -m venv .venv
 # Windows: .venv\Scripts\activate      macOS/Linux: source .venv/bin/activate
-pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e ".[serve,app,dev]"
+pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e ".[serve,app,gemini,dev]"
 ```
 
-Download the trained model `nutriassist-rw-q4_k_m.gguf` (about 1 GB) from Google Drive into `models/` (see [deployment guide](docs/deployment.md#option-1-run-on-your-own-computer)), then:
+Download the trained model (about 1 GB) into `models/`:
+
+```bash
+python -c "from huggingface_hub import hf_hub_download; hf_hub_download('pauline-ish/NutritionAssistant_RW', 'nutriassist-rw-q4_k_m.gguf', local_dir='models')"
+```
+
+(or download [nutriassist-rw-q4_k_m.gguf](https://huggingface.co/pauline-ish/NutritionAssistant_RW/resolve/main/nutriassist-rw-q4_k_m.gguf)
+in the browser and move it into `models/`).
+
+**Kinyarwanda answers (optional).** Questions with no reviewed answer are translated by Google Gemini.
+Get a free key at [Google AI Studio](https://aistudio.google.com/apikey) and put it in a file named
+`.env` in the project folder:
+
+```
+GEMINI_API_KEY=your-key-here
+```
+
+Without a key, English works fully and Kinyarwanda questions get reviewed answers or "Did you mean...?"
+suggestions. Then start the app:
 
 ```bash
 python scripts/run_local.py
@@ -247,6 +265,15 @@ python scripts/run_local.py
 
 - App: http://localhost:8501
 - API documentation (Swagger UI): http://localhost:8000/docs
+
+The first answer takes a few seconds while the model loads. Stop the app with Ctrl+C.
+
+**Troubleshooting.**
+- *"Port 8501 is not available"* or *Server error 500* in the app: an earlier copy is still running.
+  Close it (or restart the computer) and run `python scripts/run_local.py` again.
+- *Chat answers are placeholders:* the model file is not in `models/` (demo mode, see below).
+- *`llama-cpp-python` fails to build:* keep the `--extra-index-url` above, which installs a prebuilt
+  version instead of compiling it.
 
 **With Docker (optional),** instead of the steps above:
 

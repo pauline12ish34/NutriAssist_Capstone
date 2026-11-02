@@ -115,6 +115,16 @@ class TestTranslation:
     def test_glossary_only_replaces_whole_words(self):
         assert apply_glossary("ibyuma") == "ibyuma"
 
+    def test_glossary_fixes_groundnut_paste_from_gemini(self):
+        text = "Yongeramo amavuta make cyangwa ikimonyo cy'ubunyobwa."
+        assert apply_glossary(text) == "Yongeramo amavuta make cyangwa ubunyobwa biseye."
+
+    def test_gemini_prompt_glossary_names_meal_completion_terms(self):
+        from nutriassist.qa_data.gemini_drafts import _glossary
+        glossary = _glossary()
+        assert "- groundnut paste = ubunyobwa biseye" in glossary
+        assert "- protein food = ibiryo byubaka umubiri" in glossary
+
     def test_translates_each_sentence_in_one_batch(self):
         translator = FakeTranslator()
         assert translate_text(translator, "One. Two.", "en", "rw") == "[rw] One. [rw] Two."

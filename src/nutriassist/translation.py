@@ -34,6 +34,9 @@ KINYARWANDA_GLOSSARY = {
     "ubuki bwa mama": "amashereka",
     "ubuki bw'amabere": "amashereka",
     "ubuki bw'ibere": "amashereka",
+    # "groundnut paste" rendered by Gemini as a word that does not exist.
+    "ikimonyo cy'ubunyobwa": "ubunyobwa biseye",
+    "ikimonyo cy'ibishyimbo": "ubunyobwa biseye",
 }
 
 # Qwen sometimes slips a Chinese word into an English answer ("colds (感冒)"); NLLB would copy it.

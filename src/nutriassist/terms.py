@@ -74,6 +74,11 @@ GLOSSARY = [
     Term("community health worker", ("community health worker", "community health workers"),
          ("umujyanama w'ubuzima", "abajyanama b'ubuzima"), topic=False),
     Term("growth monitoring", ("growth monitoring",), ("gukurikirana imikurire",), topic=False),
+    # From the reviewed meal-completion sentence ("Add a little oil or groundnut paste and a protein food...").
+    # Gemini wrote "ikimonyo cy'ubunyobwa" (not a word) and "imboga" (vegetables) for these.
+    Term("groundnut paste", ("groundnut paste", "peanut paste", "peanut butter"), ("ubunyobwa biseye",), topic=False),
+    Term("protein food", ("protein food", "protein-rich food", "body-building food"), ("ibiryo byubaka umubiri",),
+         topic=False),
 ]
 
 
