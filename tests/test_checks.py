@@ -94,6 +94,59 @@ def test_in_the_translation_route_the_check_runs_in_english_before_translating_b
     assert checker.answer_checks == [("[en] Ni ibihe biryo bifasha umwana kugira amaraso ahagije?", "Breastfeed often.")]
 
 
+class EnglishOnlyScope(FakeChecker):
+    """In scope only once translated: the informal Kinyarwanda spelling scores too low in LaBSE."""
+
+    def __init__(self):
+        super().__init__()
+        self.scope_checks = []
+
+    def in_scope(self, question):
+        self.scope_checks.append(question)
+        return question.startswith("[en]")
+
+
+def test_a_translated_question_is_checked_for_scope_in_english():
+    checker = EnglishOnlyScope()
+    assistant = NutritionAssistant(ScriptedChatModel(lambda q: "Yes, with a little oil."), knowledge=knowledge(),
+                                   translator=FakeTranslator(), checker=checker)
+    reply = assistant.ask("Ese amakaroni nimeza kumwana wimyaka 2?")
+    assert reply.source is ReplySource.MODEL and reply.translated
+    assert checker.scope_checks == ["[en] Ese amakaroni nimeza kumwana wimyaka 2?"]
+
+
+def test_a_translated_question_out_of_scope_in_english_is_declined_without_the_model():
+    model = ScriptedChatModel(lambda q: "Restart the phone.")
+    translator = FakeTranslator()
+    reply = NutritionAssistant(model, knowledge=knowledge(), translator=translator,
+                               checker=FakeChecker(in_scope=False)).ask("Nakora iki ngo telefoni yanjye yongere ikore?")
+    assert reply.source is ReplySource.OUT_OF_SCOPE and reply.answer == messages.OUT_OF_SCOPE["rw"]
+    assert model.calls == [] and translator.calls == [("rw", "en")]
+
+
+def test_a_question_naming_a_known_food_is_in_scope_even_with_a_low_score():
+    from nutriassist.terms import KeyTerms, Term
+    kb = knowledge()
+    kb.key_terms = KeyTerms([Term("cabbage", ("cabbage",), ("amashu",))])
+    model = ScriptedChatModel(lambda q: "Yes, cook it soft.")
+    reply = NutritionAssistant(model, knowledge=kb, checker=FakeChecker(in_scope=False)).ask(
+        "I give the child pasta and cabbage")
+    assert reply.source is ReplySource.MODEL
+
+
+def test_scope_needs_a_domain_word_unless_very_close():
+    import numpy as np
+    from nutriassist.safety.relevance import RelevanceChecker
+
+    def embedder(texts):   # every question scores 0.6 against the one reviewed question
+        return np.array([[1.0, 0.0] if t == "reviewed" else [0.6, 0.8] for t in texts])
+
+    checker = RelevanceChecker(embedder, ["reviewed"])
+    assert checker.in_scope("I give the child rice")                       # domain word, 0.6 >= 0.50
+    assert checker.in_scope("Naha umwana umuceri")
+    assert not checker.in_scope("When will the elections be held in Rwanda?")  # no domain word, 0.6 < 0.75
+
+
 def test_on_topic_answers_pass_unchanged():
     reply = NutritionAssistant(ScriptedChatModel(lambda q: "Give beans and dark green leaves."),
                                checker=FakeChecker()).ask("What foods help my child have enough blood?")

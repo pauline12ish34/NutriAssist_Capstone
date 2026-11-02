@@ -136,11 +136,15 @@ class NutritionAssistant:
             answer, source = rule.message[lang], ReplySource.SAFETY_RULE
         elif self.knowledge is not None and (match := self.knowledge.find(question, lang)) is not None:
             answer, source = match.pair.answer, ReplySource.REVIEWED
-        elif self.checker is not None and not self.checker.in_scope(question):
+        # A Kinyarwanda question that will be translated is checked for scope in English instead (in
+        # _translated_answer): everyday spelling ("amakaroni nimeza kumwana wimyaka 2") scores too low in LaBSE.
+        elif self.checker is not None and not self._translates(lang) and not self._in_scope(question):
             answer, source = messages.OUT_OF_SCOPE[lang], ReplySource.OUT_OF_SCOPE
         else:
             result = ReplySource.NO_MATCH if lang in self.reviewed_only else self._generated_answer(question, lang)
-            if isinstance(result, ReplySource):   # reviewed-only, translator down, or the answer was off topic
+            if result is ReplySource.OUT_OF_SCOPE:
+                answer, source = messages.OUT_OF_SCOPE[lang], result
+            elif isinstance(result, ReplySource):   # reviewed-only, translator down, or the answer was off topic
                 answer, suggestions = self._no_answer(question, lang)
                 source = result
             else:
@@ -181,6 +185,19 @@ class NutritionAssistant:
             log.warning("Translation failed; offering reviewed questions instead", exc_info=True)
             return ReplySource.NO_MATCH
 
+    def _in_scope(self, question: str) -> bool:
+        """Close in meaning to a reviewed question, or names a food or illness from the food table: short
+        questions ("I give the child pasta and cabbage") score too low in LaBSE but are plainly on topic."""
+        return self._names_known_topic(question) or self.checker.in_scope(question)
+
+    def _names_known_topic(self, question: str) -> bool:
+        key_terms = getattr(self.knowledge, "key_terms", None)
+        return key_terms is not None and bool(key_terms(question).topics)
+
+    def _translates(self, lang: str) -> bool:
+        """Kinyarwanda questions go through English when a translator is set and the model may answer."""
+        return lang == KINYARWANDA and self.translator is not None and lang not in self.reviewed_only
+
     def _on_topic(self, question: str, answer: str) -> bool:
         if self.checker is None or self.checker.on_topic(question, answer):
             return True
@@ -217,6 +234,8 @@ class NutritionAssistant:
 
     def _translated_answer(self, question: str) -> str | ReplySource:
         english_question = translate_text(self.translator, question, KINYARWANDA, ENGLISH)
+        if self.checker is not None and not self._in_scope(english_question):
+            return ReplySource.OUT_OF_SCOPE
         english_answer = self._model_answer(english_question, ENGLISH)
         # Checked in English, which LaBSE knows best, and before translating back: no Gemini call is wasted.
         if not self._on_topic(english_question, english_answer):

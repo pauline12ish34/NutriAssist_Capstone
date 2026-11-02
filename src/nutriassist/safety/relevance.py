@@ -16,14 +16,35 @@ each keeps about 95% of the good cases it was calibrated on.
 
 from __future__ import annotations
 
+import re
 from typing import Callable, Sequence
 
 import numpy as np
 
 Embedder = Callable[[Sequence[str]], np.ndarray]
 
-SCOPE_THRESHOLD = 0.62    # question vs the closest reviewed question: keeps 94% in scope, declines 85% out
-ANSWER_THRESHOLD = 0.27   # question vs the answer: keeps 95% right, blocks 64% (en) / 32% (rw) wrong-topic
+# A question is in scope when it is very close to a reviewed question, or fairly close and uses a word of
+# the domain (child, feed, umwana, konsa...). Out-of-domain questions translated by Gemini scored 0.66-0.67
+# ("When will the elections be held in Rwanda?") and "What is the capital of Kenya?" 0.71, while short
+# nutrition questions ("I give the child rice") scored 0.61: the score alone cannot separate them.
+# On the calibration data (scripts/calibrate_checks.py) this keeps 97% of English and 95% of Kinyarwanda
+# held-out questions and declines all 26 out-of-scope ones (a single 0.62 threshold: 91% / 98%, and 85%).
+SCOPE_THRESHOLD = 0.75        # close enough on its own
+DOMAIN_SCOPE_THRESHOLD = 0.50  # close enough when the question uses a domain word
+# Question vs the answer. 0.27 kept 97% of reviewed answers but also blocked good model answers, which
+# match the question more loosely ("My 2-year-old refuses vegetables" vs a sound answer: 0.21). 0.18 keeps
+# every reviewed English answer and still blocks 23% of answers from another category; out-of-domain
+# questions are stopped by the scope check above, before the model.
+ANSWER_THRESHOLD = 0.18
+
+DOMAIN = re.compile(
+    r"\b(?:child|children|baby|babies|infant|toddler|newborn|kid|son|daughter|"
+    r"food|foods|eat|eats|eating|feed|feeds|feeding|meal|meals|diet|nutrition|nutrient|nourish\w*|malnutrition|"
+    r"malnourished|appetite|hungry|breastfe\w*|breast|milk|formula|porridge|pregnan\w*|mother|mum|mom|lactat\w*|"
+    r"weight|growth|stunt\w*|wasting|muac|vitamin\w*|iron|zinc|calcium|protein|deworm\w*|hypothermia|"
+    r"cook\w*|portion|snack\w*|drink\w*|water|"
+    r"umwana|abana|uruhinja|impinja|akana|utwana|kurya|arya|ibiryo|indyo|imirire|amafunguro|ifunguro|konsa|yonsa|"
+    r"amashereka|amata|utwite|batwite|umubyeyi|ababyeyi|gukura|ibiro|igikoma|guteka|kunywa)\b", re.IGNORECASE)
 
 
 class RelevanceChecker:
@@ -42,7 +63,8 @@ class RelevanceChecker:
         return float(q @ a)
 
     def in_scope(self, question: str) -> bool:
-        return self.scope_score(question) >= self.scope_threshold
+        score = self.scope_score(question)
+        return score >= self.scope_threshold or (score >= DOMAIN_SCOPE_THRESHOLD and bool(DOMAIN.search(question)))
 
     def on_topic(self, question: str, answer: str) -> bool:
         return self.answer_score(question, answer) >= self.answer_threshold
