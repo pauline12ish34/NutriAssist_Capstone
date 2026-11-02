@@ -2,19 +2,17 @@
 
 **A bilingual (English / Kinyarwanda) nutrition assistant and meal planner for caregivers of children under 5 in Rwanda.**
 
-Malnutrition remains a leading problem for young children in Rwanda, and caregivers often have no quick,
-trustworthy source of feeding advice in their own language. NutriAssist-RW answers questions on
-breastfeeding, feeding children from 6 months to 5 years, maternal nutrition and local foods, sends
-caregivers to the health centre when a question describes a danger sign, and builds meal plans from
-local foods sized for the child's age.
+NutriAssist-RW answers questions on breastfeeding, feeding children from 6 months to 5 years, maternal
+nutrition and local foods. It sends caregivers to the health centre when a question describes a danger
+sign, and builds meal plans from local Rwandan foods sized for the child's age.
 
 | | |
 |---|---|
-| **Repository** | https://github.com/pauline12ish34/NutriAssist_Capstone |
-| **Live app** | https://huggingface.co/spaces/pauline-ish/nutriAssist_Rw (free ZeroGPU Space; the first visit after 48 hours without visitors takes a few minutes to wake up) |
-| **Walkthrough video** | [Watch the demo on YouTube](https://drive.google.com/drive/folders/1Lt9xp5sJ1G7Hn1PMMkvfGXrB9uKC6jKV?usp=sharing) |
-| **Technical report (PDF)** | https://docs.google.com/document/d/1BxUJMjiChwt-fdrzl4D_yUkv_gVp7zRuUHOEspxrXbw/edit?usp=sharing |
+| **Live app** | https://huggingface.co/spaces/pauline-ish/nutriAssist_Rw (the first visit after a quiet period takes a few minutes to wake up) |
+| **Walkthrough video** | [Watch the demo (Google Drive)](https://drive.google.com/drive/folders/1Lt9xp5sJ1G7Hn1PMMkvfGXrB9uKC6jKV?usp=sharing) |
+| **Technical report** | https://docs.google.com/document/d/1BxUJMjiChwt-fdrzl4D_yUkv_gVp7zRuUHOEspxrXbw/edit?usp=sharing |
 | **Training notebook** | [Open in Colab](https://colab.research.google.com/github/pauline12ish34/NutriAssist_Capstone/blob/main/notebooks/nutriassist_training.ipynb) |
+| **Repository** | https://github.com/pauline12ish34/NutriAssist_Capstone |
 
 > NutriAssist-RW gives general nutrition guidance. It does not diagnose illness or recommend medicines.
 > In an emergency, go to the nearest health centre or call **912**.
@@ -23,213 +21,49 @@ local foods sized for the child's age.
 
 ## Features
 
-| Feature | What it does | Where |
+- **Ask a question** in English or Kinyarwanda. Answers come from a fine-tuned small language model,
+  or from answers reviewed by a native Kinyarwanda speaker when the question matches one.
+- **Danger-sign alerts.** Questions describing urgent signs (for example, a child who cannot drink or is
+  very sleepy) get an immediate referral to the health centre.
+- **Meal planner.** 1–7 day meal plans for children aged 6–59 months from local foods, with portions in
+  tablespoons.
+- **API** with interactive documentation (Swagger UI) for developers.
+
+## How it works
+
+```
+Question ─► language detection ─► danger-sign rules ─┬─ urgent ─► fixed referral message
+                                                     └─ other ──► reviewed answer if one matches,
+                                                                  otherwise the fine-tuned model
+                                                                  (Kinyarwanda through Gemini translation)
+Meal plan ─► nutrient targets by age ─► local foods chosen ─► portions and tips
+```
+
+| | Online (live app) | On your computer |
 |---|---|---|
-| Bilingual chat assistant | Answers in the language of the question with a small language model fine-tuned with QLoRA on 513 curated question-answer pairs: Gemma-3-4B online (GPU), Qwen2.5-1.5B locally (CPU). AI-written answers carry a warning | `src/nutriassist/assistant.py`, `notebooks/` |
-| Reviewed Kinyarwanda answers | Kinyarwanda is shown only from answers approved by a native speaker: a matching question gets its reviewed answer word for word, otherwise the app offers up to three "Did you mean...?" reviewed questions. The fine-tuned model's own Kinyarwanda, and machine translation through English, were evaluated and judged unreliable ([why](docs/kinyarwanda.md)) | `src/nutriassist/knowledge.py`, `src/nutriassist/terms.py` |
-| Safety layer | Rule-based detection of WHO/IMCI danger signs in English and Kinyarwanda answers urgent cases with a fixed referral before the model is called; blocks medicine doses; adds a referral when a medical answer lacks one; a fixed answer for honey (unsafe under 12 months) | `src/nutriassist/safety/` |
-| Meal planner | 1–7 day plans for children aged 6–59 months from 33 local foods, meeting WHO energy targets and minimum dietary diversity, with portions in tablespoons | `src/nutriassist/planner/` |
-| REST API | FastAPI with Swagger UI, input validation and clear errors | `src/nutriassist/api/` |
-| Web app | Chat, Meal planner and How to use pages in English and Kinyarwanda, with a disclaimer before first use: Gradio online (`app/gradio_app.py`), Streamlit locally (`app/streamlit_app.py`); both share `app/texts.py` | `app/` |
-| Data pipelines | Cleaning of the food composition workbook; building of the bilingual QA dataset with leak-free splits | `src/nutriassist/food_data/`, `src/nutriassist/qa_data/` |
+| Interface | Gradio | Streamlit + FastAPI |
+| Model | Gemma-3-4B, fine-tuned (GPU) | Qwen2.5-1.5B, fine-tuned (CPU) |
 
-## Screenshots
+Design, algorithms, experiment results and testing strategies are in the technical report and in
+[docs/technical_details.md](docs/technical_details.md).
 
-_Screenshots go in `docs/images/` (taken from the live app):_
+## Use the app online
 
-| | |
-|---|---|
-| ![Disclaimer before first use](docs/images/disclaimer.png) | ![Chat in English with an AI answer](docs/images/chat_en.png) |
-| ![Urgent danger-sign answer](docs/images/urgent.png) | ![Kinyarwanda reviewed answer](docs/images/chat_rw.png) |
-| ![7-day meal plan](docs/images/meal_plan.png) | ![Swagger UI of the API](docs/images/swagger.png) |
+Open the [live app](https://huggingface.co/spaces/pauline-ish/nutriAssist_Rw). Nothing to install.
 
-## Architecture
+1. Read the disclaimer and press **I understand, continue**.
+2. Choose **English** or **Kinyarwanda**.
+3. **Ask a question:** type a question or tap an example.
+4. **Meal planner:** set the child's age, whether the child is breastfed and 1 or 7 days, then press
+   **Make my plan**.
+5. **How to use** explains the features and their limits.
 
-The same pipeline runs in two deployments:
+## Run the app on your computer
 
-| | Online (live app) | Local, optionally in Docker |
-|---|---|---|
-| Interface | Gradio, assistant in the same process | Streamlit, talking to FastAPI over HTTP (Swagger at `/docs`) |
-| Model | Gemma-3-4B + LoRA adapter, Transformers on a ZeroGPU GPU (borrowed only while it writes) | Qwen2.5-1.5B GGUF with llama.cpp on the CPU |
+**Requirements:** Python 3.10 or newer (3.12 recommended), Git, about 2 GB of free RAM and 2 GB of disk
+space. Works on Windows, macOS and Linux.
 
-The local version, in detail:
-
-```
-                    ┌────────────────────────── FastAPI backend ───────────────────────────┐
- Browser ─► Streamlit ─HTTP─► /chat ─► language detection ─► danger-sign rules ─┬─ urgent ─► fixed referral message
- (app/)              │                                                          └─ other ──► matches a reviewed question? ─ yes ─► reviewed answer
-                     │                                                                         │ no
-                     │                                       Kinyarwanda: "no checked answer" + "Did you mean...?" reviewed questions
-                     │                                       English:     LLM (llama.cpp, GGUF)
-                     │                                                                         └► dose check, referral check
-                     └──────► /meal-plan ─► targets by age (WHO/FAO) ─► greedy food selection ─► portions, coverage, tips
-                                                                         (food table, 33 local foods)
-```
-
-**Design.** Every answer generator implements one interface, `ChatModel`
-(`src/nutriassist/inference/base.py`): `TransformersChatModel` (GPU, training and evaluation),
-`LlamaCppChatModel` (CPU, local app), `ZeroGPUChatModel` (borrows a GPU only while writing, online
-app, `app/gradio_app.py`) and `ScriptedChatModel` (tests and demo mode). The
-assistant, the evaluator and the API depend only on that interface, so models can be swapped without
-touching them. Configuration lives in dataclasses (`TrainingConfig`, `Settings`), data in typed classes
-(`QADataset`, `ChatExample`, `FoodCatalogue`, `MealPlan`), and each package has one responsibility.
-
-**Algorithms and problem solving.**
-- *Danger-sign detection:* compiled bilingual patterns with multi-part rules ("baby under 2 months" **and** "fever") and an English negation window ("not vomiting"). Linear in message length; no false urgent alarms on the 707 ordinary questions in the dataset.
-- *Meal planning:* greedy slot filling that scores each food by the nutrients still needed, a bonus for a new WHO food group and a penalty for foods eaten in the previous two days; then energy calibration and rounding to household measures.
-- *Language detection:* function-word and Kinyarwanda noun-class-prefix scoring; correct on all 1,327 dataset texts.
-- *Training:* loss masked to answer tokens only; QLoRA (4-bit NF4 base model, LoRA on all linear layers); resumable experiment runner.
-- *Food data cleaning:* the source workbook gives values per serving, not per 100 g, with unit errors and a shifted column in 300 rows; the pipeline detects and corrects them (`docs/nutrient_cleaning.md`).
-
-## Results
-
-**Fine-tuned model vs. its base model** on the held-out test set (78 questions, English and Kinyarwanda),
-from notebook section 6. Model: Qwen2.5-1.5B, experiment `exp3_lr_5e-4` (the model of the local app).
-
-| Metric (test set) | Base model | Fine-tuned | Change |
-|---|---|---|---|
-| ROUGE-L | 9.2 | 27.5 | +200% |
-| chrF | 24.4 | 34.5 | +42% |
-| BLEU | 1.0 | 11.8 | ×12 |
-| Perplexity (lower is better) | 53.8 | 9.9 | −82% |
-| Referral F1 (medical questions sent to a health worker) | 37.5% | 63.3% | +69% |
-| Referral recall | 28.1% | 59.4% | +111% |
-| Language match (answer in the question's language) | 84.6% | 98.7% | +17% |
-| Numeric accuracy (reference numbers given within ±10%; 47 answers with numbers) | 14.9% | 26.0% | +11.0 points |
-
-Numeric accuracy (`python scripts/numeric_accuracy.py`) is the proposal's main metric: ages, amounts,
-meals a day and MUAC cut-offs in the answer, compared with the reference. It rose by 11 points
-(English +15, Kinyarwanda +6), short of the proposal's +20 target, and the share of invented numbers did
-not fall. This is one reason the numbers that matter most come from code, not the model: meal-plan
-amounts from the planner, danger signs from the rules.
-
-A blinded expert rating (correctness, safety, local relevance, 1–5) of 40 answers, base vs fine-tuned
-on 20 English test questions, is prepared with `python -m nutriassist.evaluation.expert_rating build`
-and scored with `... expert_rating analyse <filled sheet>`.
-
-**Gemma-3-4B (`exp9_gemma3_4b`, the model of the live app).** Qwen2.5-1.5B wrote fluent English but
-broken Kinyarwanda (answers that loop or drift off the question), so the online app uses Gemma-3-4B,
-which is pre-trained on more languages. It was trained with the same QLoRA recipe as `exp1_baseline`.
-The numbers below come from the adapter's training logs, published with it on the
-[Hugging Face Hub](https://huggingface.co/pauline-ish/NutritionAssistant_RW/tree/main/adapter)
-(copies in [docs/results/gemma_exp9/](docs/results/gemma_exp9/)).
-
-| Setting / result | Value |
-|---|---|
-| Base model | `unsloth/gemma-3-4b-it` (language model only; image encoder left out), 4-bit QLoRA |
-| Learning rate, LoRA rank / alpha, dropout | 2e-4, 16 / 32, 0.05 |
-| Epochs, effective batch size, max length | 3, 16 (4 × 4 gradient accumulation), 768 tokens |
-| Trainable parameters | 29.8 M (0.69% of the model) |
-| Training time, GPU | 8.0 min on an A100 40 GB (peak allocated memory 16.7 GB) |
-| Training loss after epoch 1 / 2 / 3 | 1.80 / 1.26 / 0.76 |
-| Validation loss after epoch 1 / 2 / 3 | 1.80 / **1.72** / 1.84 |
-
-Validation loss was lowest after epoch 2 and rose in epoch 3 while training loss kept falling, an early
-sign of overfitting on 513 pairs; stopping after 2 epochs is the obvious next run. The test-set metrics
-above were measured on Qwen2.5-1.5B (`exp3_lr_5e-4`); the same test-set evaluation of Gemma-3-4B has not
-been run yet and is the next step (notebook cell 33 with `BEST_EXPERIMENT = "exp9_gemma3_4b"`).
-
-**Hyperparameter experiments** (Qwen2.5-1.5B, QLoRA, validation set; Colab GPU; [CSV](docs/results/experiment_table.csv)).
-Each experiment changes one setting from `exp1_baseline`.
-
-| Experiment | Learning rate | LoRA rank | Epochs | Trainable params (M) | Train time (min) | Peak GPU memory (GB) | Val loss | Val perplexity | Val chrF | Val ROUGE-L | Val referral F1 % |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| base model (no fine-tuning) | | | | | | | | 54.2 | 22.3 | 9.3 | 40.0 |
-| exp1_baseline | 2e-4 | 16 | 3 | 18.5 | 5.2 | 17.4 | 2.08 | 11.0 | 32.6 | 26.7 | 64.0 |
-| exp2_lr_1e-4 | 1e-4 | 16 | 3 | 18.5 | 5.2 | 18.3 | 2.17 | 13.0 | 30.0 | 25.6 | **69.0** |
-| **exp3_lr_5e-4** | 5e-4 | 16 | 3 | 18.5 | 5.2 | 19.2 | 2.15 | 11.1 | 34.6 | **28.2** | 62.5 |
-| exp4_rank_8 | 2e-4 | 8 | 3 | 9.2 | 5.2 | 20.0 | 2.11 | 11.7 | 31.8 | 26.7 | 50.0 |
-| exp5_rank_32 | 2e-4 | 32 | 3 | 36.9 | 5.3 | 21.2 | 2.10 | 10.8 | 33.6 | 26.2 | 57.1 |
-| exp6_epochs_5 | 2e-4 | 16 | 5 | 18.5 | 8.7 | 21.8 | 2.36 | 13.4 | **34.8** | 27.0 | 50.0 |
-
-`exp3` had the best ROUGE-L and was selected. Five epochs (`exp6`) lowered the training loss but raised the
-validation loss, a sign of overfitting on 513 pairs.
-
-| | |
-|---|---|
-| ![Questions per category and language](docs/results/data_categories.png) | ![Answer length in tokens](docs/results/data_tokens.png) |
-| ![Model architecture with LoRA](docs/results/model_architecture.png) | ![Referral confusion matrix](docs/results/referral_confusion.png) |
-
-The app adds rule-based safety on top of the model: urgent danger signs never reach the model, and
-Kinyarwanda answers come only from native-speaker-reviewed pairs ([why](docs/kinyarwanda.md)).
-
-**Safety referrals** (`python scripts/safety_report.py`): does the caregiver get sent to a health worker
-when the reviewed reference answer says they should? Same 78 test questions, 12 of them with danger signs.
-
-| | Danger questions referred | Referral recall | Precision | F1 |
-|---|---|---|---|---|
-| Base model | 2/12 | 28.1% | 56.2% | 37.5% |
-| Fine-tuned model alone | 7/12 | 59.4% | 67.9% | 63.3% |
-| **App: safety rules + fine-tuned model** | **8/12** | **62.5%** | **69.0%** | **65.6%** |
-
-Recall is below the proposal's 90% target: many test questions describe complications of severe
-malnutrition in general terms rather than a named danger sign, and the rules only fire on named signs.
-
-**Performance** ([details](docs/performance.md)): a model answer takes a median of **4.6 s** on the live
-ZeroGPU Space (Gemma-3-4B) and **8.1 s** on a 4-core laptop CPU (Qwen2.5-1.5B, 1.5 GB of RAM);
-safety-rule answers take **3.5 ms** and a 7-day meal plan **7.5 ms** in the API.
-
-## Repository structure
-
-```
-├── app/                         web interfaces
-│   ├── gradio_app.py            online app (Hugging Face ZeroGPU Space)
-│   ├── streamlit_app.py         local app: entry point, sidebar, navigation
-│   ├── api_client.py            HTTP client for the backend
-│   ├── texts.py                 English and Kinyarwanda interface text (shared)
-│   ├── i18n.py                  language selection for the Streamlit app
-│   └── views/                   chat, meal planner and how-to pages (Streamlit)
-├── src/nutriassist/             Python package (installable)
-│   ├── api/                     FastAPI app, request/response schemas, settings
-│   ├── assistant.py             chat pipeline: language → safety rules → reviewed answers → model → output checks
-│   ├── knowledge.py             matching questions to the reviewed answers, "Did you mean...?" suggestions
-│   ├── terms.py                 bilingual foods, illnesses and health terms (matching check, translation)
-│   ├── translation.py           NLLB-200 translation through English (evaluated, off in the app)
-│   ├── safety/                  danger-sign rules, detector, referral detection, messages
-│   ├── planner/                 nutrient targets, food catalogue, meal planner, tips
-│   ├── inference/               ChatModel interface and GPU / CPU / scripted implementations
-│   ├── training/                dataset, tokenisation, QLoRA fine-tuner, experiment runner
-│   ├── evaluation/              BLEU, chrF, ROUGE-L, perplexity, classification metrics
-│   ├── food_data/               food workbook cleaning pipeline
-│   ├── qa_data/                 QA dataset builder and Kinyarwanda review sheet
-│   ├── language.py              English / Kinyarwanda detector
-│   └── prompts.py               system prompt shared by training and the app
-├── notebooks/                   Colab training notebook
-├── data/
-│   ├── raw/                     original food workbook (read-only)
-│   ├── processed/               cleaned food tables
-│   ├── QA_data/                 QA sources, processed splits, review sheets
-│   └── reference/               Kinyarwanda food names, planner foods
-├── tests/                       281 tests (unit, integration, end-to-end)
-├── docs/                        data, cleaning, dataset, Kinyarwanda, performance and deployment documentation
-├── .github/workflows/           GitHub Actions: tests on Linux, Windows and macOS
-├── deploy/hf-zerogpu/          Hugging Face ZeroGPU Space files (the online app)
-├── deploy/hf-space/             Docker Space build files (needs a paid plan)
-├── scripts/                     local launcher, benchmark, container start script
-├── Dockerfile                   API + app in one container (optional)
-└── pyproject.toml               package metadata and dependencies
-```
-
-## Technical requirements
-
-| | Version used | Notes |
-|---|---|---|
-| Python | 3.12 (3.10+ supported) | |
-| Online app | Gradio 6.31, Hugging Face `spaces` (ZeroGPU), PyTorch 2.13, Transformers 5.x, PEFT 0.21 | free Hugging Face account; ZeroGPU needs an account older than 30 days |
-| Local app | Streamlit 1.66, FastAPI 0.150, Uvicorn | |
-| Local inference | llama-cpp-python 0.3.36 | CPU only; about 2 GB of free RAM for the 4-bit model |
-| Models | Gemma-3-4B-it (online), Qwen2.5-1.5B-Instruct (local), with LoRA adapters | adapter on [Hugging Face Hub](https://huggingface.co/pauline-ish/NutritionAssistant_RW) |
-| Training | PyTorch 2.x, Transformers 5.x, PEFT 0.21, bitsandbytes | Google Colab GPU (T4 16 GB; A100 for Gemma-3-4B) |
-| Evaluation | sacrebleu, rouge-score | |
-| Optional | Docker 24+ | to run the local app in one container |
-
-Tested on Windows 11, macOS and Linux (GitHub Actions), Google Colab, Docker and Hugging Face Spaces.
-
-## Installation and running
-
-**No installation:** use the [live app](https://huggingface.co/spaces/pauline-ish/nutriAssist_Rw).
-
-**On your own computer:**
+**1. Get the code and install**
 
 ```bash
 git clone https://github.com/pauline12ish34/NutriAssist_Capstone.git
@@ -239,25 +73,27 @@ python -m venv .venv
 pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e ".[serve,app,gemini,dev]"
 ```
 
-Download the trained model (about 1 GB) into `models/`:
+**2. Download the trained model** (about 1 GB) into `models/`:
 
 ```bash
 python -c "from huggingface_hub import hf_hub_download; hf_hub_download('pauline-ish/NutritionAssistant_RW', 'nutriassist-rw-q4_k_m.gguf', local_dir='models')"
 ```
 
-(or download [nutriassist-rw-q4_k_m.gguf](https://huggingface.co/pauline-ish/NutritionAssistant_RW/resolve/main/nutriassist-rw-q4_k_m.gguf)
-in the browser and move it into `models/`).
+Or download [nutriassist-rw-q4_k_m.gguf](https://huggingface.co/pauline-ish/NutritionAssistant_RW/resolve/main/nutriassist-rw-q4_k_m.gguf)
+in the browser and move it into `models/`.
 
-**Kinyarwanda answers (optional).** Questions with no reviewed answer are translated by Google Gemini.
-Get a free key at [Google AI Studio](https://aistudio.google.com/apikey) and put it in a file named
-`.env` in the project folder:
+**3. (Optional) Kinyarwanda answers.** Kinyarwanda questions with no reviewed answer are translated by
+Google Gemini. Get a free key at [Google AI Studio](https://aistudio.google.com/apikey) and save it in a
+file named `.env` in the project folder:
 
 ```
 GEMINI_API_KEY=your-key-here
 ```
 
 Without a key, English works fully and Kinyarwanda questions get reviewed answers or "Did you mean...?"
-suggestions. Then start the app:
+suggestions.
+
+**4. Start the app**
 
 ```bash
 python scripts/run_local.py
@@ -268,14 +104,7 @@ python scripts/run_local.py
 
 The first answer takes a few seconds while the model loads. Stop the app with Ctrl+C.
 
-**Troubleshooting.**
-- *"Port 8501 is not available"* or *Server error 500* in the app: an earlier copy is still running.
-  Close it (or restart the computer) and run `python scripts/run_local.py` again.
-- *Chat answers are placeholders:* the model file is not in `models/` (demo mode, see below).
-- *`llama-cpp-python` fails to build:* keep the `--extra-index-url` above, which installs a prebuilt
-  version instead of compiling it.
-
-**With Docker (optional),** instead of the steps above:
+**With Docker (optional),** instead of steps 1–4 (after downloading the model):
 
 ```bash
 docker build -t nutriassist .
@@ -284,67 +113,59 @@ docker run -p 7860:7860 -p 8000:8000 -v "${PWD}/models:/home/user/app/models" nu
 
 Then open http://localhost:7860.
 
-Without the model file the app starts in **demo mode**: safety rules and the meal planner work; chat
-answers are placeholders.
+### Troubleshooting
 
-**Using the app.** Read the disclaimer and press *I understand, continue*. Choose English or Kinyarwanda in the sidebar. On *Ask a question*, type a question or
-tap an example. On *Meal planner*, set the child's age, whether the child is breastfed, 1 or 7 days, and
-optionally the foods you have or want to avoid, then press *Make my plan*. *How to use* explains the
-features and their limits.
+| Problem | Fix |
+|---|---|
+| "Port 8501 is not available" or *Server error 500* | An earlier copy is still running. Close it (or restart the computer) and run `python scripts/run_local.py` again. |
+| Chat answers are placeholders | The model file is missing from `models/` (demo mode: safety rules and meal planner still work). |
+| `llama-cpp-python` fails to install | Keep the `--extra-index-url` in step 1: it installs a prebuilt version. |
+| Kinyarwanda questions only get "Did you mean...?" | No Gemini key in `.env`, or the free daily Gemini limit was reached. |
 
-## Training the model
-
-Open the [training notebook in Colab](https://colab.research.google.com/github/pauline12ish34/NutriAssist_Capstone/blob/main/notebooks/nutriassist_training.ipynb),
-choose *Runtime → Change runtime type → T4 GPU*, then *Runtime → Run all*. It installs this package from
-GitHub, explores the data, describes the model architecture, scores the base model, runs six
-hyperparameter experiments (recording time and GPU memory), evaluates the best one on the test set,
-compares answers qualitatively and exports the GGUF model. Outputs are saved to
-`MyDrive/NutriAssist-RW/outputs/`. To rebuild the datasets:
+## Run the tests
 
 ```bash
-python -m nutriassist.food_data.build_foods
-python -m nutriassist.qa_data.build_qa_dataset
+pytest
 ```
 
-## Testing
+GitHub Actions runs the tests on every push on Windows, macOS and Linux. When they pass on `main`, it
+restarts the Hugging Face Space so the live app uses the latest code.
 
-```bash
-pytest                        # all 281 tests
-pytest -m "not integration"   # fast unit tests only
-python scripts/benchmark.py --model models/nutriassist-rw-q4_k_m.gguf --threads 1 2 4 8   # performance
+## Technical requirements
+
+| | Version used |
+|---|---|
+| Python | 3.12 (3.10+ supported) |
+| Local app | Streamlit 1.66, FastAPI 0.150, Uvicorn, llama-cpp-python 0.3.36 |
+| Online app | Gradio 6.31 on a Hugging Face ZeroGPU Space, PyTorch 2.13, Transformers 5.x, PEFT 0.21 |
+| Training | Google Colab GPU, PyTorch, Transformers, PEFT, bitsandbytes |
+| Models | Gemma-3-4B-it and Qwen2.5-1.5B-Instruct with LoRA adapters ([Hugging Face Hub](https://huggingface.co/pauline-ish/NutritionAssistant_RW)) |
+
+## Repository structure
+
 ```
-
-GitHub Actions runs the tests on every push, on Linux, Windows and macOS (Python 3.12) and on Linux with
-Python 3.10.
-
-| Strategy | What is tested | Files |
-|---|---|---|
-| Unit | metrics, encoders, planner rules, safety rules, language detection, data cleaning | `test_evaluation.py`, `test_planner.py`, `test_safety.py`, … |
-| Data validation | no train/test leakage; safety rules and language detector checked against every dataset question | `test_qa_dataset.py`, `test_safety.py`, `test_language.py` |
-| Integration | real QLoRA training, adapter reload, generation and perplexity with a tiny Qwen2 model on CPU; HTTP API with validation and error cases | `test_integration_training.py`, `test_api.py` |
-| End-to-end | Streamlit pages driven against a live API server: disclaimer, chat, urgent alert, language switch, 7-day plan; the Gradio app with a scripted model, and its model-loading path with a tiny model | `test_frontend.py`, `test_gradio_app.py` |
-| Compatibility | the whole suite on three operating systems and two Python versions | `.github/workflows/tests.yml` |
-| Performance | model speed by CPU thread count (low-end vs high-end), memory, API response times, live Space timings | `scripts/benchmark.py`, [`docs/performance.md`](docs/performance.md) |
-
-Testing led to fixes: a model answer said honey is safe from 1 month, so honey questions now get a fixed
-answer; "my child … won't drink" and "very sleepy" were not caught, so the danger-sign rules were widened.
+├── app/              web interfaces (Gradio online, Streamlit locally)
+├── src/nutriassist/  Python package: assistant, safety rules, meal planner, API, training, evaluation
+├── notebooks/        Colab training notebook
+├── data/             food tables and the question-answer dataset
+├── tests/            automated tests
+├── docs/             documentation and results
+├── deploy/           Hugging Face Space files
+├── scripts/          local launcher and helper scripts
+└── Dockerfile        API + app in one container
+```
 
 ## Deployment
 
-Online, the app runs on a free Hugging Face **ZeroGPU** Space: a Gradio version of the app
-(`app/gradio_app.py`) with the same safety rules, reviewed answers and meal planner, and the fine-tuned
-model on a borrowed GPU (about 2–5 s per model answer). Hugging Face only gives free GPUs to Gradio apps,
-and Docker Spaces now need a paid plan. Locally, the app runs as one Docker container (FastAPI + Streamlit,
-model on the CPU with llama.cpp).
-Step-by-step instructions for local, Docker and Spaces deployment are in **[docs/deployment.md](docs/deployment.md)**.
+The live app runs on a free Hugging Face ZeroGPU Space. Step-by-step instructions for running locally,
+in Docker and on Hugging Face are in the [deployment guide](docs/deployment.md).
 
-## Documentation
+## More documentation
 
-- [Data inspection](docs/data_inspection.md) and [nutrient cleaning](docs/nutrient_cleaning.md)
-- [QA dataset design](docs/qa_dataset.md) and [dataset report](data/QA_data/processed/qa_report.md)
+- [Technical details: design, results, testing](docs/technical_details.md)
 - [Why Kinyarwanda answers come from reviewed pairs](docs/kinyarwanda.md)
 - [Performance and compatibility](docs/performance.md)
-- [Usability test: tasks, SUS form and scoring](docs/usability_test.md)
+- [Data inspection](docs/data_inspection.md), [nutrient cleaning](docs/nutrient_cleaning.md) and [QA dataset](docs/qa_dataset.md)
 - [Deployment guide](docs/deployment.md)
 
 ## Author
