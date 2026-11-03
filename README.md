@@ -27,7 +27,24 @@ sign, and builds meal plans from local Rwandan foods sized for the child's age.
   very sleepy) get an immediate referral to the health centre.
 - **Meal planner.** 1–7 day meal plans for children aged 6–59 months from local foods, with portions in
   tablespoons.
+- **Growth check.** Community health workers (abajyanama b'ubuzima) enter the weight, MUAC and height they
+  already measure; the app computes WHO z-scores, classifies wasting, stunting and underweight, and either
+  refers the child to the health centre today (severe) or gives feeding advice and a meal plan.
+  See [growth check](docs/screening.md).
 - **API** with interactive documentation (Swagger UI) for developers.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Disclaimer shown before first use](docs/images/disclaimer.png) | ![English question answered by the fine-tuned model, with the AI label](docs/images/chat_en.png) |
+| **Disclaimer** before first use (local app) | **Ask a question**: a model answer with the "Written by AI" label |
+| ![Danger-sign alert with a referral to the health centre](docs/images/urgent.png) | ![Meal planner form and a 7-day plan](docs/images/meal_plan.png) |
+| **Danger-sign alert**: answered by the safety rules, without the model | **Meal planner**: a 7-day plan from local foods, portions in tablespoons |
+
+<img src="docs/images/photoinphone.jpeg" alt="The live app on a phone" width="260">
+
+The live app on an Android phone.
 
 ## How it works
 
@@ -163,6 +180,7 @@ in Docker and on Hugging Face are in the [deployment guide](docs/deployment.md).
 ## More documentation
 
 - [Technical details: design, results, testing](docs/technical_details.md)
+- [Growth check: WHO z-scores, cut-offs and validation](docs/screening.md)
 - [Why Kinyarwanda answers come from reviewed pairs](docs/kinyarwanda.md)
 - [Performance and compatibility](docs/performance.md)
 - [Data inspection](docs/data_inspection.md), [nutrient cleaning](docs/nutrient_cleaning.md) and [QA dataset](docs/qa_dataset.md)

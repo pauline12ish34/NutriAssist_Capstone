@@ -37,6 +37,13 @@ class NutriAssistClient:
             "available": available, "excluded": excluded or [],
         })
 
+    def screening(self, age_months: int, sex: str, weight_kg: float, height_cm: float | None,
+                  muac_cm: float | None, oedema: bool, breastfed: bool, language: str) -> dict:
+        return self._request("POST", "/screening", json={
+            "age_months": age_months, "sex": sex, "weight_kg": weight_kg, "height_cm": height_cm,
+            "muac_cm": muac_cm, "oedema": oedema, "breastfed": breastfed, "language": language,
+        })
+
     def foods(self) -> list[dict]:
         return self._request("GET", "/foods")
 

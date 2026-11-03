@@ -108,6 +108,42 @@ TEXT: dict[str, dict[str, str]] = {
     "slot_fat": {"en": "avocado or groundnut paste", "rw": "avoka cyangwa ubunyobwa biseye"},
     "slot_fruit": {"en": "a fruit", "rw": "urubuto"},
     "slot_snack": {"en": "a snack (fruit, yoghurt, egg or avocado)", "rw": "ifunguro rito (urubuto, yawurute, igi cyangwa avoka)"},
+    # Growth screening. NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
+    "page_screening": {"en": "Growth check", "rw": "Isuzuma ry'imikurire"},
+    "screening_intro": {
+        "en": "For community health workers and caregivers: enter the measurements from growth monitoring or the "
+              "child's health booklet. The result uses the WHO Child Growth Standards. Measurements are not saved.",
+        "rw": "Ku bajyanama b'ubuzima n'abarera abana: andika ibipimo byo mu gikorwa cyo gukurikirana imikurire "
+              "cyangwa byo mu gatabo k'ubuzima bw'umwana. Igisubizo gishingiye ku bipimo by'imikurire bya OMS. "
+              "Ibipimo ntibibikwa.",
+    },
+    "s_age": {"en": "Age (months)", "rw": "Imyaka (mu mezi)"},
+    "s_sex": {"en": "Sex", "rw": "Igitsina"},
+    "boy": {"en": "Boy", "rw": "Umuhungu"},
+    "girl": {"en": "Girl", "rw": "Umukobwa"},
+    "s_weight": {"en": "Weight (kg)", "rw": "Ibiro (kg)"},
+    "s_height": {"en": "Length / height (cm), optional", "rw": "Uburebure (cm), si ngombwa"},
+    "s_height_help": {"en": "Lying down under 2 years, standing from 2 years",
+                      "rw": "Aryamye niba ari munsi y'imyaka 2, ahagaze guhera ku myaka 2"},
+    "s_muac": {"en": "MUAC (cm), optional", "rw": "MUAC (cm), si ngombwa"},
+    "s_muac_help": {"en": "From 6 months. Example: 13.2", "rw": "Guhera ku mezi 6. Urugero: 13.2"},
+    "s_oedema": {"en": "Both feet are swollen (press for 3 seconds: a dent stays)",
+                 "rw": "Ibirenge byombi birabyimbye (kanda amasegonda 3: hagasigara umwobo)"},
+    "s_button": {"en": "Check growth", "rw": "Suzuma imikurire"},
+    "s_findings": {"en": "What was found", "rw": "Ibyabonetse"},
+    "s_none": {"en": "No sign of malnutrition in these measurements.", "rw": "Nta kimenyetso cy'imirire mibi kiri muri ibi bipimo."},
+    "s_measure": {"en": "Measure", "rw": "Igipimo"},
+    "s_result": {"en": "Result", "rw": "Igisubizo"},
+    "s_advice": {"en": "Feeding advice", "rw": "Inama zo kugaburira"},
+    "s_plan": {"en": "Meal plan for one day", "rw": "Gahunda y'amafunguro y'umunsi umwe"},
+    "s_not_measured": {"en": "not measured", "rw": "ntibyapimwe"},
+    "adjusted_for": {"en": "Plan adjusted for the growth check", "rw": "Gahunda yahinduwe hakurikijwe isuzuma ry'imikurire"},
+    "s_need_sex": {"en": "Choose whether the child is a boy or a girl.",
+                   "rw": "Hitamo niba umwana ari umuhungu cyangwa umukobwa."},
+    "s_need_weight": {"en": "Enter the child's weight in kilograms.", "rw": "Andika ibiro by'umwana mu kilogarama."},
+    "z_wfa": {"en": "Weight-for-age", "rw": "Ibiro ugereranyije n'imyaka"},
+    "z_hfa": {"en": "Height-for-age", "rw": "Uburebure ugereranyije n'imyaka"},
+    "z_wfh": {"en": "Weight-for-height", "rw": "Ibiro ugereranyije n'uburebure"},
 }
 
 EXAMPLES = {
@@ -132,6 +168,15 @@ ABOUT = {
 - **Answers questions** about breastfeeding, feeding children from 6 months to 5 years, nutrition in pregnancy
   and while breastfeeding, and local Rwandan foods, in **English or Kinyarwanda**.
 - **Makes meal plans** for a child aged 6 to 59 months from local foods, with amounts in tablespoons.
+- **Checks growth** from the measurements community health workers take (weight, MUAC and height), using
+  the WHO Child Growth Standards, and gives feeding advice or tells you to go to the health centre.
+
+### Growth check
+Enter the child's age in months, sex and weight, and the MUAC and height if you have them (from growth
+monitoring or the child's health booklet). Tick the box if both feet are swollen. Press *Check growth*:
+- 🔴 **Severe:** go to the health centre **today**. No meal plan is given: severe malnutrition needs treatment.
+- 🟡 **Follow-up:** see the health centre, with feeding advice and a meal plan.
+- 🟢 **Normal:** keep coming to monthly growth monitoring.
 
 ### How to use it
 1. Choose your language in the sidebar.
@@ -161,6 +206,18 @@ ABOUT = {
   n'uwonsa, n'ibiribwa byo mu Rwanda, mu **Cyongereza cyangwa mu Kinyarwanda**.
 - **Ikora gahunda y'amafunguro** y'umwana ufite hagati y'amezi 6 na 59, ikoresheje ibiribwa byo mu Rwanda,
   n'ingano mu biyiko.
+- **Isuzuma imikurire** hakoreshejwe ibipimo abajyanama b'ubuzima bafata (ibiro, MUAC n'uburebure),
+  ishingiye ku bipimo by'imikurire bya OMS, igatanga inama zo kugaburira cyangwa ikakubwira kujya ku kigo
+  nderabuzima.
+
+### Isuzuma ry'imikurire
+Andika imyaka y'umwana mu mezi, igitsina n'ibiro, na MUAC n'uburebure niba ubifite (byo mu gikorwa cyo
+gukurikirana imikurire cyangwa mu gatabo k'ubuzima bw'umwana). Kanda ku kazu niba ibirenge byombi
+bibyimbye. Kanda *Suzuma imikurire*:
+- 🔴 **Bikabije:** jya ku kigo nderabuzima **uyu munsi**. Nta gahunda y'amafunguro itangwa: imirire mibi
+  ikabije ikenera kuvurwa.
+- 🟡 **Gukurikiranwa:** jya ku kigo nderabuzima, uhabwe inama zo kugaburira na gahunda y'amafunguro.
+- 🟢 **Ni byiza:** komeza kuza mu gikorwa cya buri kwezi cyo gukurikirana imikurire.
 
 ### Uko ikoreshwa
 1. Hitamo ururimi mu ruhande rw'ibumoso.

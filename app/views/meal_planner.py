@@ -1,12 +1,11 @@
 """Meal planner page: a 1- or 7-day plan from local foods for a child aged 6-59 months."""
 
-import pandas as pd
 import streamlit as st
 
 from api_client import ApiError, NutriAssistClient
 from i18n import language, t
+from plan_view import show_day
 
-NUTRIENTS = ("energy_kcal", "protein_g", "iron_mg", "calcium_mg")
 client = NutriAssistClient()
 
 
@@ -30,26 +29,6 @@ def plan_as_text(plan: dict) -> str:
         lines.append("")
     lines += [f"{t('tips')}:"] + [f"- {tip}" for tip in plan["tips"]]
     return "\n".join(lines)
-
-
-def show_day(day: dict) -> None:
-    for meal in day["meals"]:
-        st.markdown(f"**{meal['meal']}**")
-        table = pd.DataFrame(meal["foods"])[["name", "household_measure", "grams"]]
-        table.columns = [t("food"), t("amount"), t("grams")]
-        st.dataframe(table, hide_index=True, use_container_width=True)
-
-    st.markdown(f"**{t('coverage')}**")
-    columns = st.columns(len(NUTRIENTS))
-    for column, nutrient in zip(columns, NUTRIENTS):
-        percent = day["coverage_pct"][nutrient]
-        column.metric(t(nutrient), f"{percent}%")
-        column.progress(min(percent, 100) / 100)
-
-    groups = day["dietary_diversity"]
-    verdict = t("diversity_ok") if day["meets_min_diversity"] else t("diversity_low")
-    st.markdown(f"**{t('diversity')}: {groups}/8** ({verdict})")
-    st.caption(", ".join(day["food_groups"]))
 
 
 st.title(f"🍲 {t('page_planner')}")

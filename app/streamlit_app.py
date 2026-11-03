@@ -57,6 +57,7 @@ if not st.session_state.get("disclaimer_accepted"):
 
 navigation = st.navigation([
     st.Page("views/chat.py", title=t("page_chat"), icon="💬", default=True),
+    st.Page("views/screening.py", title=t("page_screening"), icon="📏"),
     st.Page("views/meal_planner.py", title=t("page_planner"), icon="🍲"),
     st.Page("views/about.py", title=t("page_about"), icon="ℹ️"),
 ])

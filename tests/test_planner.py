@@ -114,3 +114,53 @@ class TestMealPlanner:
 ])
 def test_household_measures(units, unit, language, expected):
     assert household_measure(units, unit, language) == expected
+
+
+class TestPlansAdjustedForAGrowthCheck:
+    """After screening, the plan changes with what was found (see the planner module docstring)."""
+
+    @staticmethod
+    def food_energy(plan):
+        return sum(day.from_food["energy_kcal"] for day in plan.days) / len(plan.days)
+
+    @pytest.mark.parametrize("condition", ["wasting", "underweight"])
+    @pytest.mark.parametrize("age", [9, 18, 36])
+    def test_catch_up_growth_gets_25_percent_more_energy_and_an_extra_snack(self, planner, condition, age):
+        normal = planner.plan(PlanRequest(age_months=age, days=7))
+        catch_up = planner.plan(PlanRequest(age_months=age, days=7, conditions=frozenset({condition})))
+        assert catch_up.targets.need["energy_kcal"] == pytest.approx(1.25 * normal.targets.need["energy_kcal"])
+        assert self.food_energy(catch_up) > 1.2 * self.food_energy(normal)
+        assert catch_up.targets.snacks == normal.targets.snacks + 1
+        assert all(day.coverage_pct["energy_kcal"] >= 90 for day in catch_up.days)   # against the raised need
+
+    def test_wasting_and_underweight_together_raise_energy_only_once(self, planner):
+        both = planner.plan(PlanRequest(age_months=18, conditions=frozenset({"wasting", "underweight"})))
+        one = planner.plan(PlanRequest(age_months=18, conditions=frozenset({"wasting"})))
+        assert both.targets.need == one.targets.need
+        assert len(both.to_dict("en")["adjustments"]) == 1
+
+    @pytest.mark.parametrize("age", [9, 18, 36])
+    def test_overweight_plan_has_no_added_fat(self, planner, age):
+        plan = planner.plan(PlanRequest(age_months=age, days=7, conditions=frozenset({"overweight"})))
+        assert not any("fat" in p.food.slots for day in plan.days for p in day.portions())
+        assert all(90 <= day.coverage_pct["energy_kcal"] <= 110 for day in plan.days)   # normal energy, not less
+
+    def test_stunting_plan_says_it_has_a_food_from_animals_every_day(self, planner):
+        plan = planner.plan(PlanRequest(age_months=18, days=7, conditions=frozenset({"stunting"})))
+        assert plan.animal_food_every_day
+        assert "every day of this plan has a food from animals" in plan.to_dict("en")["adjustments"][0]
+
+    def test_stunting_plan_warns_when_the_family_has_no_food_from_animals(self, planner):
+        plants = frozenset({"maize_flour", "beans", "sweet_potato", "amaranth", "banana", "avocado", "soy_flour"})
+        plan = planner.plan(PlanRequest(age_months=18, available=plants, conditions=frozenset({"stunting"})))
+        assert not plan.animal_food_every_day
+        assert "indagara" in plan.to_dict("en")["adjustments"][0]
+
+    def test_adjusted_plan_replaces_the_healthy_child_tip(self, planner):
+        tips = planner.plan(PlanRequest(age_months=18, conditions=frozenset({"wasting"}))).tips
+        assert "adjusted_plan" in tips and "guide_only" not in tips
+        assert "guide_only" in planner.plan(PlanRequest(age_months=18)).tips
+
+    def test_unknown_condition_is_rejected(self):
+        with pytest.raises(ValueError, match="Unknown conditions"):
+            PlanRequest(age_months=18, conditions=frozenset({"obesity"}))

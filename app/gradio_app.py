@@ -36,6 +36,8 @@ from nutriassist.assistant import AssistantReply, InvalidQuestion, NutritionAssi
 from nutriassist.inference.base import ChatModel, GenerationSettings  # noqa: E402
 from nutriassist.planner import FoodCatalogue, MealPlanner, PlanRequest  # noqa: E402
 from nutriassist.prompts import Message  # noqa: E402
+from nutriassist.screening import ScreeningInputError, ScreeningRequest, ScreeningResult, screen  # noqa: E402
+from nutriassist.screening.messages import INDICATORS  # noqa: E402
 from texts import ABOUT, EXAMPLES, TEXT  # noqa: E402
 
 try:
@@ -77,16 +79,32 @@ def _generate_on_gpu(conversations: list[list[Message]]) -> list[str]:
 
 
 class ZeroGPUChatModel(ChatModel):
-    """Borrows a ZeroGPU GPU only for the time it takes to write an answer."""
+    """Borrows a ZeroGPU GPU only for the time it takes to write an answer.
 
-    def __init__(self, model: ChatModel) -> None:
+    ZeroGPU sometimes hands out a worker whose GPU fails to start ("No CUDA GPUs are available", seen in the
+    Space logs on 2 Nov 2026). The next request usually gets a healthy worker, so a failed call is retried
+    once before the caregiver sees an error.
+    """
+
+    attempts = 2
+
+    def __init__(self, model: ChatModel, generate=None) -> None:
         super().__init__(model.settings)
         global _GPU_MODEL
         _GPU_MODEL = model
         self.name = model.name
+        self._generate = generate or _generate_on_gpu
 
     def generate_batch(self, conversations: Sequence[Sequence[Message]]) -> list[str]:
-        return _generate_on_gpu([list(conversation) for conversation in conversations])
+        conversations = [list(conversation) for conversation in conversations]
+        for attempt in range(1, self.attempts + 1):
+            try:
+                return self._generate(conversations)
+            except Exception:
+                if attempt == self.attempts:
+                    raise
+                log.warning("GPU call failed (attempt %d of %d); retrying", attempt, self.attempts, exc_info=True)
+        raise AssertionError("unreachable")
 
 
 def load_model() -> ChatModel:
@@ -178,6 +196,8 @@ def question_buttons(questions: Sequence[str]) -> list:
 
 def plan_markdown(plan: dict, lang: str) -> str:
     lines = []
+    if plan.get("adjustments"):
+        lines += [f"**{t('adjusted_for', lang)}:**"] + [f"- {a}" for a in plan["adjustments"]] + [""]
     if plan["unfilled_slots"]:
         lines.append(f"⚠️ **{t('missing_slots', lang)}:**")
         lines += [f"- {t('slot_' + slot, lang)}" for slot in plan["unfilled_slots"]]
@@ -198,6 +218,26 @@ def plan_markdown(plan: dict, lang: str) -> str:
                   f"_{', '.join(day['food_groups'])}_", ""]
     lines.append(f"### 💡 {t('tips', lang)}")
     lines += [f"- {tip}" for tip in plan["tips"]]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- growth check
+
+def screening_markdown(result: ScreeningResult, lang: str, plan: dict | None = None) -> str:
+    data = result.to_dict(lang)
+    lines = [f"## {data['title']}", "", data["advice"], "", f"**{t('s_findings', lang)}**", ""]
+    lines += [f"- {finding['text']}" for finding in data["findings"]] or [f"- {t('s_none', lang)}"]
+    missing = t("s_not_measured", lang)
+    rows = [(INDICATORS[name][lang], missing if z is None else f"{z:+.2f}") for name, z in data["z_scores"].items()]
+    rows.append(("MUAC", missing if data["muac_cm"] is None else f"{data['muac_cm']} cm"))
+    lines += ["", f"| {t('s_measure', lang)} | {t('s_result', lang)} |", "|---|---:|"]
+    lines += [f"| {name} | {value} |" for name, value in rows]
+    if data["notes"]:
+        lines += [""] + [f"_{note}_" for note in data["notes"]]
+    if data["tips"]:
+        lines += ["", f"### 💡 {t('s_advice', lang)}"] + [f"- {tip}" for tip in data["tips"]]
+    if plan is not None:
+        lines += ["", f"### 🍲 {t('s_plan', lang)}", "", plan_markdown(plan, lang)]
     return "\n".join(lines)
 
 
@@ -246,6 +286,25 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
                         encoding="utf-8")
         return text, gr.update(value=str(path), visible=True)
 
+    def check_growth(age, sex, weight, height, muac, oedema, breastfed, lang):
+        try:
+            result = screen(ScreeningRequest(
+                age_months=None if age is None else int(age), sex=sex,
+                weight_kg=None if weight is None else float(weight),
+                height_cm=None if height in (None, 0) else float(height),
+                muac_cm=None if muac in (None, 0) else float(muac), oedema=bool(oedema)))
+        except ScreeningInputError as error:
+            return f"⚠️ {error.message(lang)}"
+        plan = None
+        if result.gets_meal_plan:
+            plan = services.planner.plan(PlanRequest(age_months=result.request.age_months, days=1,
+                                                     breastfed=bool(breastfed),
+                                                     conditions=frozenset(result.conditions))).to_dict(lang)
+        return screening_markdown(result, lang, plan)
+
+    def sex_choices(lang: str) -> list[tuple[str, str]]:
+        return [(t("boy", lang), "male"), (t("girl", lang), "female")]
+
     with gr.Blocks(title="NutriAssist-RW") as demo:
         with gr.Sidebar():
             header_md = gr.Markdown(header("en"))
@@ -265,6 +324,20 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
                 with gr.Row():
                     buttons = [gr.Button(text, size="sm") for text in EXAMPLES["en"][:N_QUESTION_BUTTONS]]
                 clear = gr.Button(f"🗑️ {t('clear_chat', 'en')}", size="sm", variant="secondary")
+
+            with gr.Tab(f"📏 {t('page_screening', 'en')}") as screening_tab:
+                screening_intro = gr.Markdown(t("screening_intro", "en"))
+                with gr.Row():
+                    s_age = gr.Number(value=12, precision=0, minimum=0, maximum=59, label=t("s_age", "en"))
+                    s_sex = gr.Radio(sex_choices("en"), value=None, label=t("s_sex", "en"))
+                with gr.Row():
+                    s_weight = gr.Number(value=None, minimum=0, label=t("s_weight", "en"))
+                    s_height = gr.Number(value=None, minimum=0, label=t("s_height", "en"), info=t("s_height_help", "en"))
+                    s_muac = gr.Number(value=None, minimum=0, label=t("s_muac", "en"), info=t("s_muac_help", "en"))
+                s_oedema = gr.Checkbox(value=False, label=t("s_oedema", "en"))
+                s_breastfed = gr.Checkbox(value=True, label=t("breastfed", "en"))
+                s_button = gr.Button(t("s_button", "en"), variant="primary")
+                s_output = gr.Markdown()
 
             with gr.Tab(f"🍲 {t('page_planner', 'en')}") as planner_tab:
                 planner_intro = gr.Markdown(t("planner_intro", "en"))
@@ -288,6 +361,8 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
         clear.click(lambda lang: ([], *question_buttons(EXAMPLES[lang]), gr.update(visible=True)), language,
                     [chatbot, *buttons, examples_title])
         make.click(make_plan, [age, breastfed, days, available, excluded, language], [plan_output, download])
+        s_button.click(check_growth, [s_age, s_sex, s_weight, s_height, s_muac, s_oedema, s_breastfed, language],
+                       s_output)
 
         def switch_language(lang: str):
             return (
@@ -297,6 +372,13 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
                 gr.update(label=f"💬 {t('page_chat', lang)}"), t("chat_intro", lang),
                 gr.update(placeholder=t("chat_placeholder", lang)), f"**{t('examples', lang)}**",
                 *question_buttons(EXAMPLES[lang]), gr.update(value=f"🗑️ {t('clear_chat', lang)}"),
+                gr.update(label=f"📏 {t('page_screening', lang)}"), t("screening_intro", lang),
+                gr.update(label=t("s_age", lang)), gr.update(label=t("s_sex", lang), choices=sex_choices(lang)),
+                gr.update(label=t("s_weight", lang)),
+                gr.update(label=t("s_height", lang), info=t("s_height_help", lang)),
+                gr.update(label=t("s_muac", lang), info=t("s_muac_help", lang)),
+                gr.update(label=t("s_oedema", lang)), gr.update(label=t("breastfed", lang)),
+                gr.update(value=t("s_button", lang)),
                 gr.update(label=f"🍲 {t('page_planner', lang)}"), t("planner_intro", lang),
                 gr.update(label=t("age", lang), info=t("age_help", lang)), gr.update(label=t("breastfed", lang)),
                 gr.update(label=t("days", lang), choices=[(t("one_day", lang), 1), (t("one_week", lang), 7)]),
@@ -308,6 +390,7 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
 
         language.change(switch_language, language, [
             header_md, language, disclaimer, accept, chat_tab, chat_intro, question, examples_title, *buttons, clear,
+            screening_tab, screening_intro, s_age, s_sex, s_weight, s_height, s_muac, s_oedema, s_breastfed, s_button,
             planner_tab, planner_intro, age, breastfed, days, available, excluded, make, download,
             about_tab, about,
         ])

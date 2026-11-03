@@ -21,8 +21,9 @@ from ..assistant import AssistantReply, InvalidQuestion, NutritionAssistant, Rep
 from ..inference.base import ChatModel
 from ..knowledge import KnowledgeBase
 from ..planner import FoodCatalogue, MealPlanner, PlanRequest
+from ..screening import ScreeningInputError, ScreeningRequest, screen
 from .schemas import (ChatRequest, ChatResponse, ErrorResponse, FoodOut, HealthResponse, MealPlanRequest,
-                      MealPlanResponse)
+                      MealPlanResponse, ScreeningRequestIn, ScreeningResponse)
 from ..translation import Translator
 from ..safety.relevance import RelevanceChecker
 from ..safety.topics import TopicRules
@@ -151,11 +152,29 @@ def create_app(settings: Settings | None = None, model: ChatModel | None = None,
             plan = s.planner.plan(PlanRequest(
                 age_months=body.age_months, days=body.days, breastfed=body.breastfed,
                 available=frozenset(body.available) if body.available is not None else None,
-                excluded=frozenset(body.excluded),
+                excluded=frozenset(body.excluded), conditions=frozenset(body.conditions),
             ))
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return MealPlanResponse(**plan.to_dict(body.language))
+
+    @app.post("/screening", response_model=ScreeningResponse, tags=["growth check"],
+              responses={422: {"model": ErrorResponse}})
+    def screening(body: ScreeningRequestIn, request: Request) -> ScreeningResponse:
+        """Classify a child's nutritional status from weight, height and MUAC (WHO Child Growth Standards)."""
+        s = services(request)
+        try:
+            result = screen(ScreeningRequest(age_months=body.age_months, sex=body.sex, weight_kg=body.weight_kg,
+                                             height_cm=body.height_cm, muac_cm=body.muac_cm, oedema=body.oedema))
+        except ScreeningInputError as error:
+            raise HTTPException(status_code=422, detail=error.message(body.language)) from error
+        data = result.to_dict(body.language)
+        plan = None
+        if data.pop("meal_plan"):
+            plan = s.planner.plan(PlanRequest(age_months=body.age_months, days=1, breastfed=body.breastfed,
+                                              conditions=frozenset(result.conditions)))
+            plan = MealPlanResponse(**plan.to_dict(body.language))
+        return ScreeningResponse(**data, meal_plan=plan)
 
     @app.get("/foods", response_model=list[FoodOut], tags=["meal planner"])
     def foods(request: Request) -> list[FoodOut]:

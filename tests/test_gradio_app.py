@@ -19,6 +19,34 @@ def services():
     return gradio_app.Services.create(ScriptedChatModel(lambda q: "Give mashed beans with avocado."))
 
 
+def _flaky_gpu(failures: int):
+    """A stand-in for the ZeroGPU call that fails ``failures`` times, then answers."""
+    calls = []
+
+    def generate(conversations):
+        calls.append(conversations)
+        if len(calls) <= failures:
+            raise RuntimeError("No CUDA GPUs are available")
+        return ["Give mashed beans with avocado."] * len(conversations)
+    return generate, calls
+
+
+def test_zerogpu_model_retries_a_failed_gpu_call_once():
+    generate, calls = _flaky_gpu(failures=1)
+    model = gradio_app.ZeroGPUChatModel(ScriptedChatModel(lambda q: "unused"), generate=generate)
+    assert model.generate_batch([[{"role": "user", "content": "What should my baby eat?"}]]) == \
+        ["Give mashed beans with avocado."]
+    assert len(calls) == 2
+
+
+def test_zerogpu_model_gives_up_after_two_failures():
+    generate, calls = _flaky_gpu(failures=2)
+    model = gradio_app.ZeroGPUChatModel(ScriptedChatModel(lambda q: "unused"), generate=generate)
+    with pytest.raises(RuntimeError, match="No CUDA"):
+        model.generate_batch([[{"role": "user", "content": "What should my baby eat?"}]])
+    assert len(calls) == 2
+
+
 def test_urgent_reply_shows_the_banner_and_no_ai_warning(services):
     text = gradio_app.format_reply(services.assistant.ask("My child is having a seizure"))
     assert text.startswith("🚨 **Danger sign detected**")
@@ -100,3 +128,21 @@ def test_page_builds_with_every_example_question(services):
     demo = gradio_app.build_demo(services)
     assert isinstance(demo, gr.Blocks)
     assert len(EXAMPLES["en"]) >= gradio_app.N_QUESTION_BUTTONS
+
+
+@pytest.mark.parametrize("lang", ["en", "rw"])
+def test_growth_check_red_muac_sends_to_the_health_centre_without_a_plan(services, lang):
+    from nutriassist.screening import ScreeningRequest, screen
+    result = screen(ScreeningRequest(age_months=18, sex="male", weight_kg=8.0, height_cm=78.0, muac_cm=11.0))
+    text = gradio_app.screening_markdown(result, lang)
+    assert text.startswith("## 🔴") and "912" in text
+    assert "🍲" not in text
+
+
+def test_growth_check_moderate_child_gets_advice_and_a_meal_plan(services):
+    from nutriassist.screening import ScreeningRequest, screen
+    result = screen(ScreeningRequest(age_months=18, sex="female", weight_kg=9.0, muac_cm=12.0))
+    plan = services.planner.plan(PlanRequest(age_months=18, days=1, breastfed=True)).to_dict("en")
+    text = gradio_app.screening_markdown(result, "en", plan)
+    assert text.startswith("## 🟡") and "Feeding advice" in text and "Meal plan for one day" in text
+    assert "not measured" in text   # no height given

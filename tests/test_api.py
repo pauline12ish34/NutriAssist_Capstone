@@ -80,6 +80,29 @@ class TestMealPlan:
         assert response.status_code == 422
 
 
+class TestScreening:
+    def test_red_muac_is_severe_with_no_meal_plan(self, client):
+        body = client.post("/screening", json={"age_months": 18, "sex": "male", "weight_kg": 8.0,
+                                               "height_cm": 78.0, "muac_cm": 11.0}).json()
+        assert body["level"] == "severe" and body["meal_plan"] is None
+        assert "sam_muac" in {f["key"] for f in body["findings"]}
+
+    def test_moderate_child_gets_a_one_day_plan_in_kinyarwanda(self, client):
+        body = client.post("/screening", json={"age_months": 18, "sex": "female", "weight_kg": 9.0,
+                                               "muac_cm": 12.0, "language": "rw"}).json()
+        assert body["level"] == "moderate" and body["tips"]
+        assert len(body["meal_plan"]["days"]) == 1 and body["meal_plan"]["days"][0]["meals"][0]["meal"] == "Mu gitondo"
+        assert body["z_scores"]["hfa"] is None
+
+    def test_impossible_weight_is_rejected_in_the_chosen_language(self, client):
+        response = client.post("/screening", json={"age_months": 12, "sex": "male", "weight_kg": 90,
+                                                   "language": "rw"})
+        assert response.status_code == 422 and "ibiro" in response.json()["detail"].lower()
+
+    def test_sex_is_required(self, client):
+        assert client.post("/screening", json={"age_months": 12, "weight_kg": 9}).status_code == 422
+
+
 def test_foods_lists_the_catalogue(client):
     foods = client.get("/foods").json()
     assert len(foods) >= 30
@@ -178,3 +201,16 @@ def test_translator_must_be_known():
     with pytest.raises(ValueError):
         build_translator(Settings(translator="google"))
     assert build_translator(Settings(kinyarwanda="reviewed")) is None
+
+
+def test_screening_meal_plan_is_adjusted_for_wasting(client):
+    body = client.post("/screening", json={"age_months": 18, "sex": "female", "weight_kg": 9.0,
+                                           "muac_cm": 12.0}).json()
+    assert body["meal_plan"]["adjusted_for"] == ["wasting"]
+    assert "25% more energy" in body["meal_plan"]["adjustments"][0]
+
+
+def test_meal_plan_endpoint_accepts_conditions(client):
+    plan = client.post("/meal-plan", json={"age_months": 18, "conditions": ["overweight"]}).json()
+    assert plan["adjusted_for"] == ["overweight"]
+    assert client.post("/meal-plan", json={"age_months": 18, "conditions": ["obesity"]}).status_code == 422

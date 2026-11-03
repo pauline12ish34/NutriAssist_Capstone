@@ -12,6 +12,14 @@ Algorithm, for each day:
 3. Scale all portions so the day's energy from food meets the target, within realistic limits,
    then round to household amounts.
 4. Report nutrient coverage (food + breast milk), WHO minimum dietary diversity and feeding tips.
+
+After a growth check the plan is adjusted for what was found (``PlanRequest.conditions``):
+    wasting, underweight  catch-up growth: +25% energy and protein, one extra snack, and energy and
+                          protein weigh more in the score
+    stunting              no change to the food choice: the planner already puts a food from animals
+                          (milk products, eggs, meat, fish) in every day when the family has one. The plan
+                          says so, or warns when the chosen foods include none.
+    overweight            no added-fat slot (avocado, groundnut paste), and energy weighs less
 """
 
 from __future__ import annotations
@@ -22,7 +30,7 @@ from typing import Iterable, Sequence
 
 from .catalogue import FOOD_GROUPS, Food, FoodCatalogue
 from .requirements import NUTRIENTS, NutritionTargets, targets_for
-from .tips import MEAL_NAMES, tip
+from .tips import ADJUSTMENTS, MEAL_NAMES, tip
 
 REFERENCE_FOOD_ENERGY = 550.0            # kcal from food at 12-23 months, which the catalogue portions are sized for
 NUTRIENT_WEIGHTS = {"energy_kcal": 1.0, "protein_g": 1.0, "iron_mg": 1.5, "calcium_mg": 0.5}
@@ -32,6 +40,14 @@ REPEAT_WINDOW = 2                        # days
 SCALE_LIMITS = (0.6, 1.6)                # how far energy calibration may stretch the starting portions
 MIN_DIETARY_DIVERSITY = 5                # of 8 groups (WHO, children 6-23 months)
 IRON_FOODS = frozenset({"legumes_nuts", "vitamin_a_fruit_veg"})
+
+CONDITIONS = ("wasting", "underweight", "stunting", "overweight")
+ANIMAL_SOURCE = frozenset({"dairy", "flesh_foods", "eggs"})
+CONDITION_WEIGHTS = {   # multiply NUTRIENT_WEIGHTS
+    "wasting": {"energy_kcal": 1.5, "protein_g": 1.5},
+    "underweight": {"energy_kcal": 1.5, "protein_g": 1.5},
+    "overweight": {"energy_kcal": 0.5},
+}
 
 MEAL_SLOTS = {
     "breakfast": ("porridge_flour", "porridge_enricher", "fruit"),
@@ -48,10 +64,34 @@ class PlanRequest:
     breastfed: bool = True
     available: frozenset[str] | None = None      # only these foods (None = all)
     excluded: frozenset[str] = frozenset()       # never these (allergy, dislike, unavailable)
+    conditions: frozenset[str] = frozenset()     # from a growth check: wasting, underweight, stunting, overweight
 
     def __post_init__(self) -> None:
         if not 1 <= self.days <= 7:
             raise ValueError("A plan covers 1 to 7 days.")
+        unknown = sorted(set(self.conditions) - set(CONDITIONS))
+        if unknown:
+            raise ValueError(f"Unknown conditions {unknown}; use {CONDITIONS}.")
+
+    @property
+    def catch_up(self) -> bool:
+        return bool({"wasting", "underweight"} & set(self.conditions))
+
+
+@dataclass(frozen=True)
+class Profile:
+    """How the food score changes for the child's growth-check result."""
+    weights: dict[str, float]
+    skip_slots: frozenset[str] = frozenset()      # no added-fat slot, and no added-fat food in any slot
+
+    @classmethod
+    def for_conditions(cls, conditions: frozenset[str]) -> "Profile":
+        weights = dict(NUTRIENT_WEIGHTS)
+        for nutrient in weights:
+            factors = [CONDITION_WEIGHTS[c][nutrient] for c in conditions if nutrient in CONDITION_WEIGHTS.get(c, {})]
+            if factors:   # wasting and underweight together count once, not 1.5 x 1.5
+                weights[nutrient] *= max(factors) if max(factors) > 1 else min(factors)
+        return cls(weights, frozenset({"fat"}) if "overweight" in conditions else frozenset())
 
 
 @dataclass
@@ -115,8 +155,21 @@ class MealPlan:
     tips: list[str]                       # tip keys
     unfilled_slots: list[str] = field(default_factory=list)
 
+    @property
+    def animal_food_every_day(self) -> bool:
+        return all(any(p.food.group in ANIMAL_SOURCE for p in day.portions()) for day in self.days)
+
+    def _adjustment_key(self, condition: str) -> str:
+        if condition == "stunting" and not self.animal_food_every_day:
+            return "stunting_no_animal_food"
+        return condition
+
     def to_dict(self, language: str = "en") -> dict:
+        lang = "rw" if language == "rw" else "en"
+        adjusted = [c for c in CONDITIONS if c in self.request.conditions]
         return {
+            "adjusted_for": adjusted,
+            "adjustments": list(dict.fromkeys(ADJUSTMENTS[self._adjustment_key(c)][lang] for c in adjusted)),
             "age_months": self.request.age_months,
             "age_band": self.targets.band.key,
             "breastfed": self.targets.breastfed,
@@ -133,20 +186,21 @@ class MealPlanner:
         self.catalogue = catalogue
 
     def plan(self, request: PlanRequest) -> MealPlan:
-        targets = targets_for(request.age_months, request.breastfed)
+        targets = targets_for(request.age_months, request.breastfed, catch_up=request.catch_up)
+        profile = Profile.for_conditions(frozenset(request.conditions))
         foods = self._eligible_foods(request)
         scale = targets.from_food["energy_kcal"] / REFERENCE_FOOD_ENERGY
         recent: deque[Counter] = deque(maxlen=REPEAT_WINDOW)
         days, unfilled = [], []
 
         for day_number in range(1, request.days + 1):
-            meals, missing = self._choose_foods(targets, foods, scale, recent)
+            meals, missing = self._choose_foods(targets, foods, scale, recent, profile)
             unfilled += missing
             day = self._finish_day(day_number, meals, targets)
             recent.append(Counter(p.food.key for p in day.portions()))
             days.append(day)
 
-        return MealPlan(request, targets, days, self._tips(targets, days), unfilled)
+        return MealPlan(request, targets, days, self._tips(targets, days, request.conditions), unfilled)
 
     def _eligible_foods(self, request: PlanRequest) -> list[Food]:
         named = set(request.excluded) | set(request.available or ())
@@ -158,7 +212,7 @@ class MealPlanner:
                 if k in keys and k not in request.excluded and self.catalogue[k].min_age_months <= request.age_months]
 
     def _choose_foods(self, targets: NutritionTargets, foods: Sequence[Food], scale: float,
-                      recent: deque[Counter]) -> tuple[list[Meal], list[str]]:
+                      recent: deque[Counter], profile: Profile) -> tuple[list[Meal], list[str]]:
         needed = dict(targets.from_food)
         groups_today: set[str] = set()
         used_today: set[str] = set()
@@ -166,12 +220,15 @@ class MealPlanner:
         for kind in _occasions(targets):
             meal = Meal(kind)
             for slot in MEAL_SLOTS[kind]:
-                candidates = [f for f in foods if slot in f.slots and f.key not in used_today]
+                if slot in profile.skip_slots:
+                    continue
+                candidates = [f for f in foods if slot in f.slots and f.key not in used_today
+                              and not (profile.skip_slots & set(f.slots))]
                 if not candidates:
                     missing.append(slot)
                     continue
                 best = max(candidates, key=lambda f: (self._score(f, f.portion_g * scale, needed, targets,
-                                                                 groups_today, recent), f.key))
+                                                                 groups_today, recent, profile), f.key))
                 portion = Portion(best, best.portion_g * scale)
                 meal.portions.append(portion)
                 used_today.add(best.key)
@@ -185,11 +242,12 @@ class MealPlanner:
 
     @staticmethod
     def _score(food: Food, grams: float, needed: dict[str, float], targets: NutritionTargets,
-               groups_today: set[str], recent: deque[Counter]) -> float:
+               groups_today: set[str], recent: deque[Counter], profile: Profile | None = None) -> float:
+        profile = profile or Profile(dict(NUTRIENT_WEIGHTS))
         amounts = food.nutrients(grams)
         useful = sum(
             weight * min(amounts.get(n, 0.0), needed[n]) / targets.from_food[n]
-            for n, weight in NUTRIENT_WEIGHTS.items() if targets.from_food[n] > 0
+            for n, weight in profile.weights.items() if targets.from_food[n] > 0
         )
         diversity = DIVERSITY_BONUS if food.group not in groups_today else 0.0
         repeats = sum(day[food.key] for day in recent)
@@ -209,7 +267,7 @@ class MealPlanner:
                 for nutrient, amount in portion.food.nutrients(portion.grams).items():
                     if nutrient in from_food:
                         from_food[nutrient] += amount
-        total_need = targets.band.total
+        total_need = targets.need
         coverage = {n: 100 * (from_food[n] + targets.from_breast_milk[n]) / total_need[n] for n in NUTRIENTS}
         groups = {p.food.group for meal in meals for p in meal.portions}
         if targets.breastfed and targets.band.breast_milk_g > 0:
@@ -218,7 +276,7 @@ class MealPlanner:
         return DayPlan(number, meals, from_food, coverage, ordered_groups)
 
     @staticmethod
-    def _tips(targets: NutritionTargets, days: list[DayPlan]) -> list[str]:
+    def _tips(targets: NutritionTargets, days: list[DayPlan], conditions: frozenset[str] = frozenset()) -> list[str]:
         tips = []
         if targets.breastfed:
             tips.append("keep_breastfeeding")
@@ -229,7 +287,7 @@ class MealPlanner:
             tips.append("vitamin_c_with_iron")
         if min(day.coverage_pct["iron_mg"] for day in days) < 70:
             tips.append("iron_hard_to_reach")
-        tips += ["no_sugar_salt", "hygiene", "guide_only"]
+        tips += ["no_sugar_salt", "hygiene", "adjusted_plan" if conditions else "guide_only"]
         return tips
 
 

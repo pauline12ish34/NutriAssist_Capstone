@@ -8,6 +8,8 @@ Sources (approximate population values, rounded; this is a planning guide, not a
 - Protein: WHO/FAO/UNU (2007) safe levels (g/kg/day) times WHO median weight for the age band.
 - Iron (10% bioavailability) and calcium: FAO/WHO (2004) "Vitamin and mineral requirements in human nutrition".
 - Meals and snacks per day: PAHO/WHO (2003); one extra snack when the child is not breastfed.
+- Catch-up growth (wasting, underweight): +25% energy and protein and one extra snack, WHO (2012) technical
+  note on supplementary foods for moderate acute malnutrition.
 - Breast-milk composition per 100 g: about 62 kcal (the density behind the WHO energy figures), 0.9 g protein, 0.03 mg iron, 28 mg calcium.
 """
 
@@ -18,6 +20,11 @@ from dataclasses import dataclass
 NUTRIENTS = ("energy_kcal", "protein_g", "iron_mg", "calcium_mg")
 BREAST_MILK_PER_100G = {"energy_kcal": 62.0, "protein_g": 0.9, "iron_mg": 0.03, "calcium_mg": 28.0}
 MIN_AGE_MONTHS, MAX_AGE_MONTHS = 6, 59
+# Catch-up growth after moderate wasting or underweight: WHO (2012) "Technical note: supplementary foods for
+# the management of moderate acute malnutrition" adds about 25 kcal/kg/day, roughly a quarter of the need
+# at 6-59 months; protein is raised in the same proportion.
+CATCH_UP_FACTOR = 1.25
+CATCH_UP_NUTRIENTS = ("energy_kcal", "protein_g")
 
 
 @dataclass(frozen=True)
@@ -53,6 +60,12 @@ class NutritionTargets:
     breastfed: bool
     from_breast_milk: dict[str, float]
     from_food: dict[str, float]      # what the meal plan has to provide
+    total_need: dict[str, float] | None = None   # whole-day need when raised for catch-up growth
+    extra_snacks: int = 0
+
+    @property
+    def need(self) -> dict[str, float]:
+        return self.total_need or self.band.total
 
     @property
     def meals(self) -> int:
@@ -62,7 +75,7 @@ class NutritionTargets:
     def snacks(self) -> int:
         # WHO advises extra feeds for non-breastfed children under 2 years.
         not_breastfed_infant = self.band.breast_milk_g > 0 and not self.breastfed
-        return self.band.snacks + (1 if not_breastfed_infant else 0)
+        return self.band.snacks + (1 if not_breastfed_infant else 0) + self.extra_snacks
 
 
 def age_band(age_months: int) -> AgeBand:
@@ -72,9 +85,14 @@ def age_band(age_months: int) -> AgeBand:
     return next(band for band in AGE_BANDS if band.min_months <= age_months <= band.max_months)
 
 
-def targets_for(age_months: int, breastfed: bool = True) -> NutritionTargets:
+def targets_for(age_months: int, breastfed: bool = True, catch_up: bool = False) -> NutritionTargets:
+    """``catch_up``: a wasted or underweight child gets CATCH_UP_FACTOR more energy and protein, and one more snack."""
     band = age_band(age_months)
     milk_g = band.breast_milk_g if breastfed else 0.0
     from_milk = {n: milk_g * BREAST_MILK_PER_100G[n] / 100 for n in NUTRIENTS}
-    from_food = {n: max(band.total[n] - from_milk[n], 0.0) for n in NUTRIENTS}
-    return NutritionTargets(age_months, band, breastfed, from_milk, from_food)
+    total = dict(band.total)
+    if catch_up:
+        total = {n: v * (CATCH_UP_FACTOR if n in CATCH_UP_NUTRIENTS else 1.0) for n, v in total.items()}
+    from_food = {n: max(total[n] - from_milk[n], 0.0) for n in NUTRIENTS}
+    return NutritionTargets(age_months, band, breastfed, from_milk, from_food,
+                            total_need=total if catch_up else None, extra_snacks=1 if catch_up else 0)

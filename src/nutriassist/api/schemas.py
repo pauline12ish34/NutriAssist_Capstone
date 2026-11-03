@@ -40,6 +40,8 @@ class MealPlanRequest(BaseModel):
     language: Language = "en"
     available: list[str] | None = Field(None, description="Use only these foods (keys from /foods); null = all")
     excluded: list[str] = Field(default_factory=list, description="Never use these foods (keys from /foods)")
+    conditions: list[Literal["wasting", "underweight", "stunting", "overweight"]] = Field(
+        default_factory=list, description="Adjust the plan for a growth-check result (see /screening)")
 
 
 class PortionOut(BaseModel):
@@ -66,6 +68,8 @@ class DayOut(BaseModel):
 
 
 class MealPlanResponse(BaseModel):
+    adjusted_for: list[str] = Field(default_factory=list, description="Growth-check conditions the plan is adjusted for")
+    adjustments: list[str] = Field(default_factory=list, description="What changed in the plan, in words")
     age_months: int
     age_band: str
     breastfed: bool
@@ -89,6 +93,40 @@ class HealthResponse(BaseModel):
     model: str
     demo_mode: bool = Field(description="True when no trained model is installed and answers are placeholders")
     version: str
+
+
+class ScreeningRequestIn(BaseModel):
+    age_months: int = Field(..., description="Child's age in completed months (0-59)", examples=[18])
+    sex: Literal["male", "female"] = Field(..., examples=["female"])
+    weight_kg: float = Field(..., description="Weight in kg (1-35)", examples=[9.0])
+    height_cm: float | None = Field(None, description="Length (lying, under 2 years) or height (standing), cm",
+                                    examples=[76.5])
+    muac_cm: float | None = Field(None, description="Mid-upper arm circumference in cm (used from 6 months)",
+                                  examples=[12.0])
+    oedema: bool = Field(False, description="Swelling of both feet (bilateral pitting oedema)")
+    breastfed: bool = Field(True, description="For the meal plan: the child is still breastfed")
+    language: Language = "en"
+
+
+class FindingOut(BaseModel):
+    key: str
+    level: Literal["severe", "moderate", "check"]
+    text: str
+
+
+class ScreeningResponse(BaseModel):
+    level: Literal["severe", "moderate", "check", "normal"] = Field(
+        description="severe: health centre today; moderate: refer for a check; check: measure again")
+    title: str
+    advice: str
+    z_scores: dict[str, float | None] = Field(description="WHO z-scores: wfa (weight-for-age), hfa "
+                                                          "(height-for-age), wfh (weight-for-height)")
+    muac_cm: float | None
+    findings: list[FindingOut]
+    tips: list[str]
+    notes: list[str]
+    meal_plan: MealPlanResponse | None = Field(None, description="A 1-day plan, unless the child must go to the "
+                                                                 "health centre today or is under 6 months")
 
 
 class ErrorResponse(BaseModel):

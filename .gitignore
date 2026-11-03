@@ -37,3 +37,6 @@ logs/
 
 # Industrial attachment logbook (personal, not part of the project)
 UR loogbook/
+
+# RDHS 2025 nutrition table downloaded from the NISR data portal (kept locally)
+data/Nutritional_Status_of_Children__2025_/

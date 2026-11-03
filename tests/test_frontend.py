@@ -113,6 +113,41 @@ def test_plan_with_few_foods_explains_what_is_missing():
     assert "a vegetable" in at.warning[0].value
 
 
+def test_growth_check_red_muac_says_go_to_the_health_centre():
+    at = start_app()
+    at.switch_page("views/screening.py").run()
+    at.number_input[0].set_value(18)
+    at.radio[0].set_value("male")
+    at.number_input[1].set_value(8.0)
+    at.number_input[2].set_value(78.0)
+    at.number_input[3].set_value(11.0)
+    at.button[0].click().run()
+    assert not at.exception
+    assert "severe acute malnutrition" in at.error[0].value and "912" in at.error[0].value
+
+
+def test_growth_check_normal_child_gets_a_meal_plan():
+    at = start_app()
+    at.switch_page("views/screening.py").run()
+    at.number_input[0].set_value(24)
+    at.radio[0].set_value("female")
+    at.number_input[1].set_value(11.5)
+    at.number_input[2].set_value(86.0)
+    at.number_input[3].set_value(14.5)
+    at.button[0].click().run()
+    assert not at.exception
+    assert "normal" in at.success[0].value
+    assert at.metric[0].label == "Energy"
+
+
+def test_growth_check_asks_for_the_sex():
+    at = start_app()
+    at.switch_page("views/screening.py").run()
+    at.number_input[1].set_value(9.0)
+    at.button[0].click().run()
+    assert "boy or a girl" in at.error[0].value
+
+
 def test_how_to_use_page_renders():
     at = start_app()
     at.switch_page("views/about.py").run()
