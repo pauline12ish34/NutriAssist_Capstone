@@ -19,9 +19,24 @@ from ..training.encoding import IGNORE_INDEX, ChatEncoder
 from .base import ChatModel, GenerationSettings
 
 
-def compute_dtype() -> torch.dtype:
-    """bfloat16 where the GPU supports it, else float16 (e.g. the Colab T4)."""
-    return torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
+def is_gemma(name_or_path: str | Path) -> bool:
+    """True for Gemma models, also for a local folder (e.g. a model after continued pre-training),
+    which is recognised by the ``model_type`` in its ``config.json``."""
+    name = str(name_or_path)
+    config = Path(name_or_path) / "config.json"
+    if config.exists():
+        name = json.loads(config.read_text(encoding="utf-8")).get("model_type", name)
+    return "gemma" in name.lower()
+
+
+def compute_dtype(name_or_path: str | Path | None = None) -> torch.dtype:
+    """bfloat16 where the GPU supports it, else float16 (e.g. the Colab T4).
+
+    Gemma overflows in float16, so on a GPU without bfloat16 it computes in float32 instead: slower, but correct.
+    """
+    if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+        return torch.bfloat16
+    return torch.float32 if name_or_path is not None and is_gemma(name_or_path) else torch.float16
 
 
 def load_tokenizer(name_or_path: str | Path):
@@ -33,13 +48,8 @@ def load_tokenizer(name_or_path: str | Path):
 
 def attention_implementation(name_or_path: str | Path) -> str | None:
     """Gemma 2 and 3 cap their attention scores ("soft-capping"), which only the eager attention code
-    computes exactly; Google recommends it for fine-tuning. Other models use the library default.
-    A local folder (e.g. a model after continued pre-training) is recognised by its ``config.json``."""
-    name = str(name_or_path)
-    config = Path(name_or_path) / "config.json"
-    if config.exists():
-        name = json.loads(config.read_text(encoding="utf-8")).get("model_type", name)
-    return "eager" if "gemma" in name.lower() else None
+    computes exactly; Google recommends it for fine-tuning. Other models use the library default."""
+    return "eager" if is_gemma(name_or_path) else None
 
 
 def load_causal_lm(name_or_path: str | Path, quantize_4bit: bool = True):
@@ -47,7 +57,7 @@ def load_causal_lm(name_or_path: str | Path, quantize_4bit: bool = True):
     attention = {"attn_implementation": impl} if (impl := attention_implementation(name_or_path)) else {}
     if not torch.cuda.is_available():
         return AutoModelForCausalLM.from_pretrained(str(name_or_path), dtype=torch.float32, **attention)
-    dtype = compute_dtype()
+    dtype = compute_dtype(name_or_path)
     quantization = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",

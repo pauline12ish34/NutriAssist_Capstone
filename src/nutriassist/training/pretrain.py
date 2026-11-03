@@ -161,7 +161,7 @@ class ContinuedPretrainer:
 
     def _training_arguments(self, num_blocks: int) -> TrainingArguments:
         cfg = self.config
-        dtype = compute_dtype()
+        dtype = compute_dtype(cfg.base_model)
         steps = -(-num_blocks // (cfg.batch_size * cfg.grad_accum))
         return TrainingArguments(
             output_dir=str(self.checkpoint_dir),

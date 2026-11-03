@@ -200,7 +200,7 @@ class QLoRAFineTuner:
 
     def _training_arguments(self, num_examples: int) -> TrainingArguments:
         cfg = self.config
-        dtype = compute_dtype() if self.on_gpu else torch.float32
+        dtype = compute_dtype(cfg.base_model) if self.on_gpu else torch.float32
         return TrainingArguments(
             output_dir=str(self.checkpoint_dir),
             per_device_train_batch_size=cfg.batch_size,
