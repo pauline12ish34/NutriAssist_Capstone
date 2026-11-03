@@ -1,0 +1,31 @@
+id,background_characteristic,height_for_age_percentage_below_3_sd,height_for_age_percentage_below_2_sd2,height_for_age_mean_z_score_sd,height_for_age_number_of_children,weight_for_height_percentage_below_3_sd,weight_for_height_percentage_below_2_sd2,weight_for_height_percentage_above_2_sd,weight_for_height_mean_z_score_sd,weight_for_height_number_of_children,weight_for_age_percentage_below_3_sd,weight_for_age_percentage_below_2_sd2,weight_for_age_mean_z_score,weight_for_age_number_of_children
+1,Age in months: <6,4.3,16.7,-0.9,717,0.2,1.2,16.8,0.9,714,2.3,5,0,718
+2,Age in months: 6-11,4,19.8,-1.2,731,0.8,1.4,5.9,0.4,732,1,5.8,-0.4,731
+3,Age in months: 12-23,9,33.2,-1.5,"1,414",0.5,1.4,4.3,0.3,"1,412",1,7.5,-0.5,"1,413"
+4,Age in months: 24-35,7.1,30.6,-1.4,"1,457",0.1,0.6,4.9,0.4,"1,460",0.4,6,-0.5,"1,459"
+5,Age in months: 36-47,6,27.2,-1.4,"1,545",0,0.5,3.2,0.4,"1,546",0.6,5.5,-0.5,"1,549"
+6,Age in months: 48-59,5.6,24.6,-1.3,"1,429",0,0.6,1.8,0.2,"1,427",0.5,6,-0.6,"1,429"
+7,Age in months: 0-23,6.6,25.6,-1.3,"2,862",0.5,1.4,7.9,0.5,"2,858",1.3,6.5,-0.3,"2,862"
+8,Age in months: 24-59,6.2,27.5,-1.4,"4,431",0,0.6,3.3,0.4,"4,433",0.5,5.8,-0.6,"4,437"
+9,Sex: Male,7.7,29.3,-1.4,"3,654",0.3,1,6.2,0.5,"3,653",0.9,6.3,-0.5,"3,659"
+10,Sex: Female,5,24.1,-1.3,"3,638",0.1,0.8,4,0.4,"3,638",0.7,5.8,-0.5,"3,640"
+11,Mother's interview status: Interviewed,6.2,26.5,-1.3,"6,737",0.2,0.9,5.3,0.4,"6,732",0.8,6,-0.5,"6,741"
+12,"Mother's interview status: Not interviewed, but in household",4.4,18.4,-1.1,71,0,1.5,2.4,0.2,71,1.5,6,-0.4,71
+13,"Mother's interview status: Not interviewed, not in household",9.2,32,-1.5,485,0.2,0.2,3,0.4,488,0.6,6.6,-0.6,487
+14,Residence: Urban,3.3,18.6,-0.9,"2,120",0.3,1.3,5.3,0.4,"2,120",0.7,5,-0.3,"2,123"
+15,Residence: Rural,7.6,30.1,-1.5,"5,173",0.2,0.7,5,0.4,"5,170",0.8,6.5,-0.6,"5,176"
+16,Province: Kigali,2,14.2,-0.8,975,0.2,0.8,3.7,0.3,975,0.4,5.4,-0.2,975
+17,Province: South,5.6,26.1,-1.4,"1,622",0.2,0.7,4,0.3,"1,622",1.1,6.8,-0.6,"1,623"
+18,Province: West,9.2,32.6,-1.5,"1,593",0.2,1,7.1,0.6,"1,592",0.8,5.4,-0.5,"1,596"
+19,Province: North,5.4,32.7,-1.5,"1,008",0.1,0.6,6,0.6,"1,007",0.4,4.2,-0.4,"1,008"
+20,Province: East,7.3,25.8,-1.3,"2,094",0.3,1.1,4.6,0.3,"2,094",1,7.3,-0.5,"2,096"
+21,Mother's education: No education,9.9,37.8,-1.7,435,0.3,1.5,4.8,0.4,435,1.6,8.7,-0.7,437
+22,Mother's education: Primary,7.3,29.9,-1.5,"4,141",0.2,0.7,5.4,0.4,"4,140",0.9,6.8,-0.5,"4,143"
+23,Mother's education: Secondary,3.6,19.6,-1.1,"1,928",0.1,1.3,5.4,0.4,"1,926",0.6,4.6,-0.3,"1,929"
+24,Mother's education: More than secondary,0.7,5.8,-0.3,303,0.3,1.4,3.5,0.3,302,0.3,1.4,0.1,303
+25,Wealth quintile: Lowest,12,39.8,-1.8,"1,647",0.3,0.8,4.2,0.3,"1,647",1.3,9.7,-0.8,"1,648"
+26,Wealth quintile: Second,6.7,32.1,-1.6,"1,487",0.3,0.7,5.4,0.5,"1,487",0.9,7,-0.6,"1,488"
+27,Wealth quintile: Middle,6.9,28.9,-1.4,"1,460",0.1,0.6,5.2,0.5,"1,460",0.7,5.4,-0.5,"1,461"
+28,Wealth quintile: Fourth,3.7,19.9,-1.2,"1,380",0.1,1,5.6,0.4,"1,377",0.8,4.7,-0.4,"1,381"
+29,Wealth quintile: Fifth,1.1,9.2,-0.6,"1,320",0.2,1.3,5.2,0.4,"1,320",0.3,2.7,-0.1,"1,320"
+30,Total,6.4,26.8,-1.3,"7,293",0.2,0.9,5.1,0.4,"7,291",0.8,6.1,-0.5,"7,299"

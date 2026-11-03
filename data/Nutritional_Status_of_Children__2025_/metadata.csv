@@ -1,0 +1,16 @@
+column_name,data_type,description
+id,INT,Row ID
+background_characteristic,TEXT,Background characteristic
+height_for_age_percentage_below_3_sd,NUMERIC,Height-for-age: Percentage below -3 SD
+height_for_age_percentage_below_2_sd2,NUMERIC,Height-for-age: Percentage below -2 SD2
+height_for_age_mean_z_score_sd,NUMERIC,Height-for-age: Mean z score (SD)
+height_for_age_number_of_children,TEXT,Height-for-age: Number of children
+weight_for_height_percentage_below_3_sd,NUMERIC,Weight-for-height: Percentage below -3 SD
+weight_for_height_percentage_below_2_sd2,NUMERIC,Weight-for-height: Percentage below -2 SD2
+weight_for_height_percentage_above_2_sd,NUMERIC,Weight-for-height: Percentage above +2 SD
+weight_for_height_mean_z_score_sd,NUMERIC,Weight-for-height: Mean z score (SD)
+weight_for_height_number_of_children,TEXT,Weight-for-height: Number of children
+weight_for_age_percentage_below_3_sd,NUMERIC,Weight-for-age: Percentage below -3 SD
+weight_for_age_percentage_below_2_sd2,NUMERIC,Weight-for-age: Percentage below -2 SD2
+weight_for_age_mean_z_score,NUMERIC,Weight-for-age: Mean z score (SD)
+weight_for_age_number_of_children,TEXT,Weight-for-age: Number of children
