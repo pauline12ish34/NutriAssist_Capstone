@@ -72,7 +72,11 @@ class ContinuedPretrainer:
         return self.adapter_dir / TRAINING_SUMMARY_FILE
 
     def is_trained(self) -> bool:
-        return self.summary_path.exists()
+        """The summary is written last, but also check the weights: a folder copied without them (seen on Drive,
+        26 Oct 2026) has only the config, and peft then looks for the adapter on the Hub instead."""
+        has_weights = any((self.adapter_dir / name).exists()
+                          for name in ("adapter_model.safetensors", "adapter_model.bin"))
+        return self.summary_path.exists() and has_weights
 
     def summary(self) -> dict:
         return json.loads(self.summary_path.read_text())
