@@ -151,7 +151,8 @@ class ContinuedPretrainer:
 
         shutil.rmtree(self.merged_dir, ignore_errors=True)
         base = load_causal_lm(self.config.base_model, quantize_4bit=False)   # merging needs unquantised weights
-        merged = PeftModel.from_pretrained(base, self.adapter_dir).merge_and_unload()
+        # str(): recent peft passes the path on to huggingface_hub, which rejects a Path object.
+        merged = PeftModel.from_pretrained(base, str(self.adapter_dir)).merge_and_unload()
         merged.save_pretrained(self.merged_dir)
         load_tokenizer(self.config.base_model).save_pretrained(self.merged_dir)
         (self.merged_dir / MERGED_MARKER).write_text(self.config.name)
