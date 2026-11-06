@@ -13,10 +13,13 @@ Configuration (environment variables, or the Space's Settings > Variables):
     NUTRIASSIST_ADAPTER_REPO     Hugging Face repo with the LoRA adapter, or "none" (default pauline-ish/NutritionAssistant_RW)
     NUTRIASSIST_ADAPTER_FOLDER   folder of the adapter inside that repo (default adapter)
     NUTRIASSIST_MAX_NEW_TOKENS   longest answer in tokens (default 320)
+    NUTRIASSIST_API_TOKEN        secret the Streamlit app sends to the /chat_json endpoint (see chat_api);
+                                 when unset, that endpoint is open to anyone
 """
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import sys
@@ -168,6 +171,19 @@ class Services:
 
 # ---------------------------------------------------------------- chat
 
+def reply_to_dict(reply: AssistantReply) -> dict:
+    """The same fields as the FastAPI /chat response, so the Streamlit app can use either backend."""
+    return {"answer": reply.answer, "language": reply.language, "safety_level": reply.safety_level,
+            "danger_signs": list(reply.danger_signs), "source": reply.source.value, "model": reply.model_name,
+            "latency_ms": reply.latency_ms, "translated": reply.translated,
+            "matched_question": reply.matched_question, "suggestions": list(reply.suggestions)}
+
+
+def api_token_is_valid(given: str, expected: str | None = None) -> bool:
+    expected = os.environ.get("NUTRIASSIST_API_TOKEN", "") if expected is None else expected
+    return not expected or hmac.compare_digest((given or "").encode(), expected.encode())
+
+
 def format_reply(reply: AssistantReply) -> str:
     lang = reply.language
     parts = []
@@ -272,6 +288,23 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
         buttons = question_buttons(suggestions or EXAMPLES[lang])
         return (history, "", *buttons, gr.update(visible=not suggestions))
 
+    def chat_api(question: str, api_token: str = "") -> dict:
+        """API for the Streamlit app on Streamlit Community Cloud (app/space_client.py): one answer, as JSON.
+
+        The safety rules, reviewed answers, translation and model run here, on the Space; the Streamlit app
+        runs the growth check and meal planner itself. A wrong ``api_token`` is refused, so other people
+        cannot spend this Space's GPU time through the API.
+        """
+        if not api_token_is_valid(api_token):
+            return {"error": "Not allowed.", "status": 403}
+        try:
+            return reply_to_dict(services.assistant.ask(question or ""))
+        except InvalidQuestion as error:
+            return {"error": str(error), "status": 422}
+        except Exception:
+            log.exception("Model error")
+            return {"error": MODEL_ERROR["en"], "status": 503}
+
     def make_plan(age: int, breastfed: bool, days: int, available: list[str], excluded: list[str], lang: str):
         try:
             plan = services.planner.plan(PlanRequest(
@@ -353,6 +386,7 @@ def build_demo(services: Services | None = None) -> gr.Blocks:
             with gr.Tab(f"ℹ️ {t('page_about', 'en')}") as about_tab:
                 about = gr.Markdown(ABOUT["en"])
 
+        gr.api(chat_api, api_name="chat_json")
         accept.click(lambda: (gr.update(visible=False), gr.update(visible=True)), None, [disclaimer_box, tabs])
         chat_outputs = [chatbot, question, *buttons, examples_title]
         question.submit(ask, [question, chatbot, language], chat_outputs)

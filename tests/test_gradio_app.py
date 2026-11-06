@@ -146,3 +146,28 @@ def test_growth_check_moderate_child_gets_advice_and_a_meal_plan(services):
     text = gradio_app.screening_markdown(result, "en", plan)
     assert text.startswith("## 🟡") and "Feeding advice" in text and "Meal plan for one day" in text
     assert "not measured" in text   # no height given
+
+
+def test_api_token_check():
+    assert gradio_app.api_token_is_valid("anything", expected="")      # no token configured: open
+    assert gradio_app.api_token_is_valid("s3cret", expected="s3cret")
+    assert not gradio_app.api_token_is_valid("wrong", expected="s3cret")
+    assert not gradio_app.api_token_is_valid("", expected="s3cret")
+
+
+def test_chat_json_endpoint_through_gradio_client(services, monkeypatch):
+    """The endpoint the Streamlit Community Cloud app calls, over HTTP, as app/space_client.py calls it."""
+    gradio_client = pytest.importorskip("gradio_client")
+    monkeypatch.setenv("NUTRIASSIST_API_TOKEN", "s3cret")
+    demo = gradio_app.build_demo(services)
+    demo.launch(prevent_thread_lock=True, quiet=True)
+    try:
+        client = gradio_client.Client(demo.local_url, verbose=False)
+        reply = client.predict("What should my 9 month old eat?", "s3cret", api_name="/chat_json")
+        assert reply["answer"] and reply["language"] == "en" and reply["safety_level"] == "none"
+        assert set(reply) >= {"source", "danger_signs", "suggestions", "translated", "matched_question"}
+        urgent = client.predict("My child is having a seizure", "s3cret", api_name="/chat_json")
+        assert urgent["safety_level"] == "urgent" and "912" in urgent["answer"]
+        assert client.predict("hello", "wrong", api_name="/chat_json") == {"error": "Not allowed.", "status": 403}
+    finally:
+        demo.close()

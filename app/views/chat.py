@@ -2,11 +2,11 @@
 
 import streamlit as st
 
-from api_client import ApiError, NutriAssistClient
+from api_client import ApiError, make_client
 from i18n import language, t
 from texts import EXAMPLES
 
-client = NutriAssistClient()
+client = make_client()
 st.session_state.setdefault("messages", [])
 st.session_state.setdefault("pending_question", None)   # a "Did you mean...?" button that was tapped
 

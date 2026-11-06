@@ -22,9 +22,10 @@ class ChatResponse(BaseModel):
     safety_level: Literal["none", "medical", "urgent"]
     danger_signs: list[str] = Field(description="Danger signs or medical topics found in the question")
     source: Literal["reviewed_answer", "no_reviewed_answer", "model", "model+referral_note", "safety_rule",
-                    "dose_blocked"] = Field(
+                    "dose_blocked", "topic_rule_on_answer", "out_of_scope", "off_topic_blocked"] = Field(
         description="Who wrote the answer: a reviewed stored answer, a fixed 'no checked answer' message (with "
-                    "suggestions), the model, the model plus a safety note, or the safety rules")
+                    "suggestions), the model, the model plus a safety note, the safety rules, or a fixed "
+                    "decline because the question (or the model's answer) was outside nutrition")
     model: str
     latency_ms: float
     translated: bool = Field(False, description="The model answered in English and the answer was machine-translated")

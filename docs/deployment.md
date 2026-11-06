@@ -148,6 +148,63 @@ holding the GGUF file. It runs on the CPU, so model answers take 15–25 seconds
 
 ---
 
+## Option 4: the Streamlit app online for free (Streamlit Community Cloud + the ZeroGPU Space)
+
+This puts the main Streamlit app online, with the CHW sign-in, growth check, meal planner and chat, at no
+cost. Streamlit Community Cloud is free but too small for the model (about 1–2.7 GB of memory), so the work is
+split:
+
+```
+Browser ──► Streamlit app on Community Cloud
+               ├── CHW sign-in, growth check, meal planner, food list   (in the app, no model, milliseconds)
+               └── chat ──HTTPS──► /chat_json on the ZeroGPU Space (option 3)
+                                     safety rules, reviewed answers, translation, Gemma + LoRA on a GPU
+```
+
+`app/space_client.py` does this. It has the same methods as the FastAPI client, so the pages are unchanged;
+`api_client.make_client()` uses it when `NUTRIASSIST_SPACE` is set. Tests check that its growth check, meal
+plans and food list are identical to the FastAPI server's (`tests/test_space_client.py`) and call the
+Space's `/chat_json` endpoint over HTTP (`tests/test_gradio_app.py`).
+
+### Steps
+
+1. **The Space needs the new endpoint.** It copies GitHub `main` when it starts, so merge this code into
+   `main`, push, and restart the Space (option 3, *Updating the Space*).
+2. **Choose a secret** (any long random text) that only the Streamlit app and the Space know. On the Space:
+   *Settings → Variables and secrets → New secret*, name `NUTRIASSIST_API_TOKEN`. Without it, anyone could
+   use the Space's GPU time through `/chat_json`.
+3. On https://share.streamlit.io, sign in with GitHub and click **Create app → Deploy a public app from
+   GitHub**:
+   - Repository: `pauline12ish34/NutriAssist_Capstone`, branch `main`
+   - Main file path: `app/streamlit_app.py`
+   - App URL: choose one, e.g. `nutriassist-rw`
+   - *Advanced settings*: Python **3.12**, and paste into **Secrets**:
+
+     ```toml
+     NUTRIASSIST_SPACE = "pauline-ish/nutriAssist_Rw"
+     NUTRIASSIST_API_TOKEN = "the same secret as on the Space"
+     NUTRIASSIST_DEMO_CODE = "a code you give to your examiners"
+     HF_TOKEN = "a Hugging Face read token (optional, see below)"
+     ```
+4. Click **Deploy**. Community Cloud installs `app/requirements.txt` (Streamlit, pandas, numpy, requests,
+   gradio_client; no model libraries) and starts the app in a few minutes.
+5. Test: sign in with `CHW-DEMO-001` and your code, then check a growth check, a 7-day meal plan, an English
+   question answered by the model, "My child is having a seizure" (urgent message) and a Kinyarwanda question.
+
+### Limits to know
+
+- **GPU time is shared.** The Space sees every chat question as coming from the Streamlit app, so all visitors
+  share one daily ZeroGPU allowance: about 2 minutes without `HF_TOKEN`, 5 minutes with a free account's token
+  (more with PRO), which is a few dozen model answers a day. Safety messages, reviewed answers, growth checks
+  and meal plans use no GPU, so they keep working when the allowance runs out. Enough for a demonstration and
+  examiners, not for a real pilot.
+- **Both parts sleep.** Community Cloud apps sleep after 12 hours without visitors and the Space after 48
+  hours. Open both before a demonstration; the first chat answer after a sleep can take a few minutes, and
+  the app says "The assistant is starting up" until then.
+- **The sign-in is a demo** (`app/chw_login.py`): made-up CHW IDs and one shared code.
+
+---
+
 ## Configuration
 
 | Environment variable | Default | Meaning |
@@ -160,6 +217,10 @@ holding the GGUF file. It runs on the CPU, so model answers take 15–25 seconds
 | `NUTRIASSIST_REPETITION_PENALTY` | `1.05` | discourages repeated phrases; set it to the value the notebook chose (section 5.3) |
 | `NUTRIASSIST_THREADS` | all cores | CPU threads for llama.cpp |
 | `NUTRIASSIST_API_URL` | `http://localhost:8000` | where the Streamlit app finds the API |
+| `NUTRIASSIST_SPACE` | none | Streamlit app only: send chat to this ZeroGPU Space (e.g. `pauline-ish/nutriAssist_Rw`) and run the rest in the app (option 4) |
+| `NUTRIASSIST_API_TOKEN` | none | shared secret between the Streamlit app and the Space's `/chat_json` endpoint (option 4) |
+| `NUTRIASSIST_LOGIN` | `on` | Streamlit app: demo CHW sign-in page; `off` to skip it |
+| `NUTRIASSIST_DEMO_CODE` | `123456` | Streamlit app: the code accepted at sign-in; set your own on a public deployment |
 | `NUTRIASSIST_KNOWLEDGE` | `data/QA_data/processed/qa_master.jsonl` | reviewed answers returned for matching questions; `off` to turn off |
 | `NUTRIASSIST_MATCH_THRESHOLD` | `0.75` | similarity needed to return a reviewed answer (chosen on the validation split) |
 | `NUTRIASSIST_KINYARWANDA` | `reviewed` | how a Kinyarwanda question with no reviewed answer is handled. `reviewed`: a fixed "no checked answer" message with up to three "Did you mean...?" reviewed questions (the model never writes Kinyarwanda). `translate`: answered in English and machine-translated with NLLB-200 (needs the `translate` extra and a 2.4 GB download; judged not good enough by a native speaker). `model`: the model writes Kinyarwanda itself (unreliable) |

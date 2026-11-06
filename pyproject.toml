@@ -57,10 +57,11 @@ embeddings = [
 gemini = [
     "google-genai>=1.0",
 ]
-# The Streamlit frontend.
+# The Streamlit frontend (gradio_client: chat through the ZeroGPU Space on Streamlit Community Cloud).
 app = [
     "streamlit>=1.45",
     "requests>=2.31",
+    "gradio_client>=1.0",
 ]
 dev = [
     "nutriassist[eval]",

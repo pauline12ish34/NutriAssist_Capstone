@@ -214,3 +214,14 @@ def test_meal_plan_endpoint_accepts_conditions(client):
     plan = client.post("/meal-plan", json={"age_months": 18, "conditions": ["overweight"]}).json()
     assert plan["adjusted_for"] == ["overweight"]
     assert client.post("/meal-plan", json={"age_months": 18, "conditions": ["obesity"]}).status_code == 422
+
+
+def test_chat_response_accepts_every_reply_source():
+    """An unrelated question gives source 'out_of_scope'; a schema missing it turned that into a 500."""
+    from typing import get_args
+
+    from nutriassist.api.schemas import ChatResponse
+    from nutriassist.assistant import ReplySource
+
+    allowed = set(get_args(ChatResponse.model_fields["source"].annotation))
+    assert {source.value for source in ReplySource} <= allowed
