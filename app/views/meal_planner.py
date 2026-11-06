@@ -2,16 +2,16 @@
 
 import streamlit as st
 
-from api_client import ApiError, NutriAssistClient
+from api_client import ApiError, make_client
 from i18n import language, t
 from plan_view import show_day
 
-client = NutriAssistClient()
+client = make_client()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_foods(base_url: str) -> list[dict]:
-    return NutriAssistClient(base_url).foods()
+    return make_client().foods()   # base_url keys the cache to the backend
 
 
 def food_label(foods: dict[str, dict]):

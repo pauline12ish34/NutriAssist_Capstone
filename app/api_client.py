@@ -59,6 +59,16 @@ class NutriAssistClient:
         return response.json()
 
 
+def make_client():
+    """The backend for the pages: the ZeroGPU Space when NUTRIASSIST_SPACE is set (Streamlit Community Cloud),
+    otherwise the FastAPI server (your computer, Docker)."""
+    if os.environ.get("NUTRIASSIST_SPACE", "").strip():
+        from space_client import SpaceClient
+
+        return SpaceClient()
+    return NutriAssistClient()
+
+
 def _error_detail(response: requests.Response) -> str:
     try:
         detail = response.json().get("detail")

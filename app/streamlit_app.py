@@ -1,18 +1,34 @@
-"""NutriAssist-RW web app (Streamlit frontend). It talks to the FastAPI backend over HTTP.
+"""NutriAssist-RW web app (Streamlit frontend).
 
 Run:  streamlit run app/streamlit_app.py
-The API must be running (``uvicorn nutriassist.api.app:app``); set NUTRIASSIST_API_URL if it is not
-at http://localhost:8000.
+Two backends (api_client.make_client):
+- the FastAPI server (``uvicorn nutriassist.api.app:app``), on your computer or in Docker; set
+  NUTRIASSIST_API_URL if it is not at http://localhost:8000;
+- on Streamlit Community Cloud, the ZeroGPU Space for chat (set NUTRIASSIST_SPACE), with the growth check and
+  meal planner running in this app (app/space_client.py).
 """
 
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))  # lets the pages import api_client and i18n
+APP_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(APP_DIR))  # lets the pages import api_client and i18n
+sys.path.insert(1, str(APP_DIR.parent / "src"))  # the nutriassist package, when it is not pip-installed
 
 import streamlit as st  # noqa: E402
 
-from api_client import ApiError, NutriAssistClient  # noqa: E402
+# On Streamlit Community Cloud the settings are secrets; the app reads them as environment variables.
+SECRET_SETTINGS = ("NUTRIASSIST_SPACE", "NUTRIASSIST_API_TOKEN", "HF_TOKEN", "NUTRIASSIST_LOGIN",
+                   "NUTRIASSIST_DEMO_CODE", "NUTRIASSIST_API_URL")
+try:
+    for _name in SECRET_SETTINGS:
+        if _name in st.secrets and not os.environ.get(_name):
+            os.environ[_name] = str(st.secrets[_name])
+except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):   # no secrets file: fine on your computer
+    pass
+
+from api_client import ApiError, make_client  # noqa: E402
 from chw_login import MAX_ATTEMPTS, DemoChwDirectory, login_required, sign_in  # noqa: E402
 from i18n import t  # noqa: E402
 
@@ -29,7 +45,7 @@ def change_language() -> None:
 @st.cache_data(ttl=30, show_spinner=False)
 def server_status(base_url: str) -> dict | None:
     try:
-        return NutriAssistClient(base_url).health()
+        return make_client().health()
     except ApiError:
         return None
 
@@ -75,7 +91,7 @@ with st.sidebar:
     st.caption(t("tagline"))
     st.radio(t("language"), list(LANGUAGES), key="language_choice", horizontal=True, on_change=change_language)
 
-    status = server_status(NutriAssistClient().base_url)
+    status = server_status(make_client().base_url)
     if status is None:
         st.error(f"● {t('server_down')}")
     else:

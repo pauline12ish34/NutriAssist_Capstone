@@ -64,6 +64,33 @@ Meal plan ─► nutrient targets by age ─► local foods chosen ─► portio
 Design, algorithms, experiment results and testing strategies are in the technical report and in
 [docs/technical_details.md](docs/technical_details.md).
 
+## Results
+
+The live model is Gemma-3-4B fine-tuned with QLoRA (experiment `exp9`), chosen from 10 logged runs on
+Qwen2.5-1.5B and three Gemma sizes by validation chrF. On the 78 held-out test questions (English and
+Kinyarwanda), compared with the same model before fine-tuning:
+
+| Test metric | Base model | Fine-tuned | Change |
+|---|---|---|---|
+| ROUGE-L | 6.0 | 31.0 | +417% |
+| chrF | 24.0 | 39.7 | +65% |
+| BLEU | 0.5 | 14.0 | +13.5 points |
+| Perplexity (lower is better) | 189.3 | 7.5 | −96% |
+| Referral F1 (refers when it should) | 36.0% | 75.4% | +109% |
+| Danger questions referred | 2 of 12 | 11 of 12 | |
+| Answer in the question's language | 57.7% | 100% | +73% |
+| Numeric accuracy (±10%) | 25.3% | 30.5% | +21% |
+
+- **Rewording:** on reworded test questions the model never saw, scores drop by only 1.4–5.6%.
+- **Kinyarwanda:** chrF rose from 19.9 to 37.7, but many fluent answers address a different question, so
+  the app shows Kinyarwanda from reviewed answers ([why](docs/kinyarwanda.md)).
+- **Growth check:** all 61,396 test measurements built from the WHO reference tables are classified
+  correctly ([details](docs/screening.md)).
+- **Tests:** 400 automated tests pass (4 November 2026).
+
+Training curves, the full experiment table (time and peak GPU memory per run), confusion matrices and
+side-by-side answers are in the [training notebook](notebooks/nutriassist_training.ipynb).
+
 ## Use the app online
 
 Open the [live app](https://huggingface.co/spaces/pauline-ish/nutriAssist_Rw). Nothing to install.

@@ -1,0 +1,8 @@
+# Packages for Streamlit Community Cloud (it reads this file because it sits next to streamlit_app.py).
+# The model runs on the ZeroGPU Space, so there is no torch or llama.cpp here; the app imports the
+# nutriassist package straight from src/. For your own computer, use the README instructions instead.
+streamlit>=1.45
+requests>=2.31
+pandas>=2.0
+numpy>=1.26
+gradio_client>=1.0
