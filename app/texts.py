@@ -45,6 +45,29 @@ TEXT: dict[str, dict[str, str]] = {
         ),
     },
     "disclaimer_accept": {"en": "I understand, continue", "rw": "Ndabyumvise, komeza"},
+    # Demo sign-in for community health workers (app/chw_login.py).
+    # NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
+    "login_title": {"en": "Sign in", "rw": "Injira"},
+    "login_intro": {
+        "en": "For community health workers: enter your CHW ID and the code you received.",
+        "rw": "Ku bajyanama b'ubuzima: andika nimero yawe y'umujyanama w'ubuzima n'umubare w'ibanga wakiriye.",
+    },
+    "login_demo_note": {
+        "en": ("Demo version: the CHW IDs are made up, and a fixed code replaces the code sent by SMS. A real "
+               "version would check the Ministry of Health's records of community health workers."),
+        "rw": ("Iyi ni verisiyo y'igerageza: nimero z'abajyanama b'ubuzima ni izahimbwe, kandi umubare w'ibanga "
+               "udahinduka usimbura uwoherezwa kuri SMS. Verisiyo nyayo yagenzura amakuru ya Minisiteri "
+               "y'Ubuzima ku bajyanama b'ubuzima."),
+    },
+    "login_id": {"en": "CHW ID", "rw": "Nimero y'umujyanama w'ubuzima"},
+    "login_code": {"en": "Code", "rw": "Umubare w'ibanga"},
+    "login_button": {"en": "Sign in", "rw": "Injira"},
+    "login_failed": {"en": "The CHW ID or the code is not correct.",
+                     "rw": "Nimero y'umujyanama w'ubuzima cyangwa umubare w'ibanga si byo."},
+    "login_locked": {"en": "Too many wrong attempts. Please try again later.",
+                     "rw": "Wagerageje inshuro nyinshi bitari byo. Ongera ugerageze nyuma."},
+    "signed_in_as": {"en": "Signed in as", "rw": "Winjiye nka"},
+    "logout": {"en": "Sign out", "rw": "Sohoka"},
     # Chat
     "chat_intro": {
         "en": "Ask about breastfeeding, feeding your child from 6 months to 5 years, nutrition in pregnancy, or local foods. You can write in English or Kinyarwanda.",
