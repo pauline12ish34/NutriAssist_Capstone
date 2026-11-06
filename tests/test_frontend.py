@@ -42,6 +42,7 @@ def api_server():
             break
         time.sleep(0.05)
     os.environ["NUTRIASSIST_API_URL"] = f"http://127.0.0.1:{port}"
+    os.environ["NUTRIASSIST_LOGIN"] = "off"   # the sign-in page has its own tests below
     sys.modules.pop("api_client", None)  # re-read the URL
     yield
     server.should_exit = True
@@ -153,3 +154,44 @@ def test_how_to_use_page_renders():
     at.switch_page("views/about.py").run()
     assert not at.exception
     assert "How to use it" in at.markdown[0].value
+
+
+def test_sign_in_comes_first_when_login_is_on(monkeypatch):
+    monkeypatch.setenv("NUTRIASSIST_LOGIN", "on")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert at.title[0].value == "🔐 Sign in"
+    assert not at.chat_input
+
+
+def test_wrong_code_is_refused_without_saying_which_part_is_wrong(monkeypatch):
+    monkeypatch.setenv("NUTRIASSIST_LOGIN", "on")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    for chw_id, code in (("CHW-DEMO-001", "000000"), ("CHW-FAKE-999", "123456"), ("CHW-DEMO-006", "123456")):
+        at.text_input[0].set_value(chw_id)
+        at.text_input[1].set_value(code)
+        at.button[0].click().run()
+        assert at.error[0].value == "The CHW ID or the code is not correct."
+        assert at.title[0].value == "🔐 Sign in"
+
+
+def test_too_many_wrong_attempts_lock_the_form(monkeypatch):
+    monkeypatch.setenv("NUTRIASSIST_LOGIN", "on")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    for _ in range(5):
+        at.text_input[0].set_value("CHW-DEMO-001")
+        at.text_input[1].set_value("999999")
+        at.button[0].click().run()
+    assert "Too many wrong attempts" in at.error[0].value
+    assert not at.text_input
+
+
+def test_demo_chw_signs_in_and_out(monkeypatch):
+    monkeypatch.setenv("NUTRIASSIST_LOGIN", "on")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    at.text_input[0].set_value(" chw-demo-002 ")
+    at.text_input[1].set_value("123456")
+    at.button[0].click().run()
+    assert at.title[0].value == "⚠️ Before you start"
+    assert "CHW-DEMO-002" in at.sidebar.caption[-1].value
+    at.sidebar.button[0].click().run()
+    assert at.title[0].value == "🔐 Sign in"
