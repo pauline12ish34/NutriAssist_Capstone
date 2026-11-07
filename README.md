@@ -137,6 +137,19 @@ GEMINI_API_KEY=your-key-here
 Without a key, English works fully and Kinyarwanda questions get reviewed answers or "Did you mean...?"
 suggestions.
 
+To translate with Anthropic Claude instead (paid, from [console.anthropic.com](https://console.anthropic.com);
+a Claude Pro subscription does not include API use), install `pip install -e ".[claude]"`, add
+`ANTHROPIC_API_KEY=your-key-here` to `.env`, and choose Claude when you start the app (PowerShell):
+
+```
+$env:NUTRIASSIST_TRANSLATOR = "claude"
+python scripts/run_local.py
+```
+
+The model is `claude-sonnet-5-5` by default (`NUTRIASSIST_CLAUDE_MODEL` changes it). On the Space, set
+`ANTHROPIC_API_KEY` as a secret and `NUTRIASSIST_TRANSLATOR` as a variable. To compare the two translators
+blind on reviewed answers, run `python scripts/compare_translators.py`.
+
 **4. Start the app**
 
 ```bash
