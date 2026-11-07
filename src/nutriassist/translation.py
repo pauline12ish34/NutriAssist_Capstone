@@ -13,8 +13,13 @@ target language (``nutriassist.terms``). A glossary then fixes the mistakes that
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import threading
 import time
+from collections import OrderedDict
+from pathlib import Path
 from typing import Protocol, Sequence
 
 from .terms import Terminology
@@ -53,6 +58,51 @@ class Translator(Protocol):
         """Translate each text from ``source`` to ``target`` ("en" or "rw")."""
 
 
+class CachingTranslator:
+    """Remembers recent translations, so a repeated question costs no new Gemini or Claude call.
+
+    The model writes the same English answer to the same question (it does not sample), so a repeated
+    Kinyarwanda question reuses both translations: the question into English and the answer back. Only
+    the translation is reused. The answer is still the model's, and the app still labels it as written by
+    AI and machine-translated. Failed translations are not stored. The cache lives in memory only: nothing
+    is written to disk, and it empties when the server restarts.
+    """
+
+    def __init__(self, translator: Translator, max_entries: int = 2000) -> None:
+        self.translator = translator
+        self.name = translator.name
+        self.whole_text = getattr(translator, "whole_text", False)
+        self.max_entries = max_entries
+        self.hits = self.misses = 0
+        self._cache: OrderedDict[tuple[str, str, str], str] = OrderedDict()
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _key(text: str, source: str, target: str) -> tuple[str, str, str]:
+        return source, target, " ".join(text.split())   # extra spaces and line breaks do not make a new entry
+
+    def translate(self, texts: Sequence[str], source: str, target: str) -> list[str]:
+        keys = [self._key(text, source, target) for text in texts]
+        results: dict[int, str] = {}
+        with self._lock:
+            for i, key in enumerate(keys):
+                if key in self._cache:
+                    self._cache.move_to_end(key)
+                    results[i] = self._cache[key]
+            self.hits += len(results)
+        missing = [i for i in range(len(texts)) if i not in results]
+        if missing:
+            translated = self.translator.translate([texts[i] for i in missing], source, target)
+            with self._lock:
+                self.misses += len(missing)
+                for i, text in zip(missing, translated):
+                    results[i] = self._cache[keys[i]] = text
+                    self._cache.move_to_end(keys[i])
+                while len(self._cache) > self.max_entries:
+                    self._cache.popitem(last=False)   # forget the least recently used
+        return [results[i] for i in range(len(texts))]
+
+
 def split_sentences(text: str) -> list[str]:
     return [sentence for sentence in (s.strip() for s in _SENTENCE_END.split(text)) if sentence]
 
@@ -73,7 +123,7 @@ def strip_foreign_script(text: str) -> str:
 def translate_text(translator: Translator, text: str, source: str, target: str) -> str:
     """Translate a multi-sentence text one sentence at a time (in one batch) and rejoin it.
 
-    A translator with ``whole_text`` (Gemini) gets the text in one piece instead.
+    A translator with ``whole_text`` (Gemini, Claude) gets the text in one piece instead.
     """
     text = strip_foreign_script(text).strip()
     if getattr(translator, "whole_text", False):
@@ -124,6 +174,24 @@ GEMINI_RETRIES = 4
 LANGUAGE_NAMES = {"en": "English", "rw": "Kinyarwanda"}
 
 
+def translation_prompt(text: str, source: str, target: str, glossary: str) -> str:
+    """The translation instructions. Gemini and Claude get the same prompt, so they can be compared fairly."""
+    return f"""Translate this text from {LANGUAGE_NAMES[source]} to {LANGUAGE_NAMES[target]}.
+It is from a child-nutrition assistant for parents and caregivers in Rwanda. Write natural, everyday
+{LANGUAGE_NAMES[target]}{" as spoken in Rwanda (not Kirundi)" if target == "rw" else ""}. Keep every fact,
+number, age and unit exactly, and keep the line breaks and list markers. Add nothing and leave nothing out.
+Reply with the translation only.
+
+Use these terms (English = Kinyarwanda):
+{glossary}
+- breast milk = amashereka
+- porridge = igikoma (never umuhogo, which is cassava)
+- to mash or grind food = gusya (never gusekura)
+
+Text:
+{text}"""
+
+
 class GeminiTranslator:
     """Google Gemini through the ``google-genai`` package (key in ``.env``, as for ``gemini_drafts``).
 
@@ -147,19 +215,7 @@ class GeminiTranslator:
         self._no_thinking_setting: set[str] = set()
 
     def prompt(self, text: str, source: str, target: str) -> str:
-        return f"""Translate this text from {LANGUAGE_NAMES[source]} to {LANGUAGE_NAMES[target]}.
-It is from a child-nutrition assistant for parents and caregivers in Rwanda. Write natural, everyday
-{LANGUAGE_NAMES[target]}{" as spoken in Rwanda (not Kirundi)" if target == "rw" else ""}. Keep every fact,
-number, age and unit exactly, and keep the line breaks and list markers. Add nothing and leave nothing out.
-Reply with the translation only.
-
-Use these terms (English = Kinyarwanda):
-{self.glossary}
-- breast milk = amashereka
-- to mash or grind food = gusya (never gusekura)
-
-Text:
-{text}"""
+        return translation_prompt(text, source, target, self.glossary)
 
     def translate(self, texts: Sequence[str], source: str, target: str) -> list[str]:
         return [self._generate(self.prompt(text, source, target)) for text in texts]
@@ -188,6 +244,104 @@ Text:
                     raise
                 time.sleep(attempt)
         raise AssertionError("unreachable")
+
+
+CLAUDE_MODEL = "claude-sonnet-5-5"
+CLAUDE_TIMEOUT_S = 30.0
+CLAUDE_MAX_TOKENS = 4096   # a long Kinyarwanda answer is under 1,500 tokens; the rest leaves room for thinking
+# On a refusal the API re-runs the request on a suitable other Claude model in the same call.
+CLAUDE_FALLBACK_BETA = "server-side-fallback-2026-07-01"
+ANTHROPIC_KEY_NAME = "ANTHROPIC_API_KEY"
+CLAUDE_SYSTEM = ("You translate for a child-nutrition assistant. Caregivers read your translation directly, so "
+                 "give one finished translation only: no drafts, corrections, notes or headings. Revise in your "
+                 "head before answering, never in the reply.")
+CLAUDE_SCHEMA = {"type": "object", "properties": {"translation": {"type": "string"}},
+                 "required": ["translation"], "additionalProperties": False}
+# Dollars per million tokens (input, output), to report what a run cost. Check anthropic.com/pricing.
+CLAUDE_PRICES = {"claude-sonnet-5-5": (2.0, 10.0), "claude-haiku-5-5": (0.10, 0.50), "claude-opus-5-5": (4.0, 20.0)}
+
+
+def anthropic_api_key(env_path: str | Path = ".env") -> str:
+    """The Anthropic API key from the environment, else from ``.env``.
+
+    This is a key from console.anthropic.com (pay as you go). A Claude Pro subscription does not include one.
+    """
+    if os.environ.get(ANTHROPIC_KEY_NAME):
+        return os.environ[ANTHROPIC_KEY_NAME]
+    env_path = Path(env_path)
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            name, _, value = line.partition("=")
+            if name.strip().upper() == ANTHROPIC_KEY_NAME and value.strip():
+                return value.strip().strip("'\"")
+    raise RuntimeError(f"No Anthropic API key: add {ANTHROPIC_KEY_NAME}=... to {env_path} or the environment")
+
+
+class ClaudeTranslator:
+    """Anthropic Claude through the ``anthropic`` package (key ``ANTHROPIC_API_KEY`` in ``.env``).
+
+    Same prompt and glossary as :class:`GeminiTranslator`, and each text is translated whole. Like Gemini it
+    needs the internet and sends the question and answer to Anthropic. Effort is low: translation needs
+    little reasoning, and more thinking only makes the caregiver wait. Token use is counted so a run can
+    report what it cost.
+    """
+
+    whole_text = True
+
+    def __init__(self, model: str = CLAUDE_MODEL, api_key: str | None = None) -> None:
+        import anthropic
+
+        from .qa_data.gemini_drafts import _glossary
+
+        # The SDK retries rate limits (429), busy servers (5xx) and dropped connections itself.
+        self.client = anthropic.Anthropic(api_key=api_key or anthropic_api_key(), timeout=CLAUDE_TIMEOUT_S,
+                                          max_retries=3)
+        self.model = model
+        self.glossary = _glossary()
+        self.name = model
+        self.input_tokens = self.output_tokens = 0
+
+    def prompt(self, text: str, source: str, target: str) -> str:
+        return translation_prompt(text, source, target, self.glossary)
+
+    def translate(self, texts: Sequence[str], source: str, target: str) -> list[str]:
+        return [self._generate(self.prompt(text, source, target)) for text in texts]
+
+    def cost_usd(self) -> float | None:
+        """What the translations so far cost, if the model's price is known."""
+        prices = CLAUDE_PRICES.get(self.model)
+        if prices is None:
+            return None
+        return (self.input_tokens * prices[0] + self.output_tokens * prices[1]) / 1_000_000
+
+    def _generate(self, prompt: str) -> str:
+        # Without the schema, Claude sometimes wrote several drafts into the reply ("Nkosoye...", "Final:"),
+        # and the caregiver saw them all. One "translation" field leaves room for exactly one.
+        response = self.client.beta.messages.create(
+            model=self.model,
+            max_tokens=CLAUDE_MAX_TOKENS,
+            system=CLAUDE_SYSTEM,
+            output_config={"effort": "low", "format": {"type": "json_schema", "schema": CLAUDE_SCHEMA}},
+            betas=[CLAUDE_FALLBACK_BETA],
+            fallbacks="default",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        self.input_tokens += response.usage.input_tokens
+        self.output_tokens += response.usage.output_tokens
+        # A refused or cut-off translation must not reach a caregiver: the caller then offers reviewed questions.
+        if response.stop_reason == "refusal":
+            raise RuntimeError(f"Claude declined to translate (request {response._request_id})")
+        if response.stop_reason == "max_tokens":
+            raise RuntimeError(f"Claude's translation was cut off (request {response._request_id})")
+        reply = "".join(block.text for block in response.content if block.type == "text")
+        try:
+            # A stray "}" from the JSON sometimes ends up inside the text; the answers never contain braces.
+            text = json.loads(reply)["translation"].replace("{", "").replace("}", "").strip()
+        except (ValueError, KeyError, TypeError, AttributeError) as error:
+            raise RuntimeError(f"Claude's reply was not a translation (request {response._request_id})") from error
+        if not text:
+            raise RuntimeError(f"Claude returned no translation (request {response._request_id})")
+        return text
 
 
 class TermAwareTranslator:

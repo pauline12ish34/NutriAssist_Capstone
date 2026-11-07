@@ -49,7 +49,8 @@ class Settings:
     # How a Kinyarwanda question with no reviewed answer is answered: "reviewed" (no answer, "Did you mean...?"
     # suggestions), "translate" (through English) or "model" (the model writes Kinyarwanda itself).
     kinyarwanda: str = "translate"
-    translator: str = "gemini"              # for "translate": "gemini" (online, the app's) or "nllb" (offline)
+    translator: str = "gemini"              # for "translate": "gemini" or "claude" (online) or "nllb" (offline)
+    claude_model: str = "claude-sonnet-5-5"   # for translator "claude"; claude-haiku-5-5 is ~20x cheaper
     grounding: int = 0                      # RAG: closest reviewed pairs put in the model's prompt (0: off)
     checks: bool = True                     # scope and answer-relevance checks, meaning-based topic rules (LaBSE)
     unanswered_log: Path | None = Path("logs/unanswered.jsonl")   # questions with no reviewed answer
@@ -71,6 +72,7 @@ class Settings:
             embeddings=env("NUTRIASSIST_EMBEDDINGS", "off").lower() in {"on", "1", "true", "yes"},
             kinyarwanda=env("NUTRIASSIST_KINYARWANDA", cls.kinyarwanda).lower(),
             translator=env("NUTRIASSIST_TRANSLATOR", cls.translator).lower(),
+            claude_model=env("NUTRIASSIST_CLAUDE_MODEL", cls.claude_model),
             grounding=int(env("NUTRIASSIST_GROUNDING", cls.grounding)),
             checks=env("NUTRIASSIST_CHECKS", "on").lower() in {"on", "1", "true", "yes"},
             unanswered_log=_optional_path(env("NUTRIASSIST_UNANSWERED_LOG", str(cls.unanswered_log))),
@@ -139,7 +141,7 @@ def build_checks(settings: Settings, embedder=None):
 
 
 KINYARWANDA_MODES = ("reviewed", "translate", "model")
-TRANSLATORS = ("gemini", "nllb")
+TRANSLATORS = ("gemini", "claude", "nllb")
 
 
 def reviewed_only_languages(settings: Settings, knowledge: KnowledgeBase | None,
@@ -163,14 +165,20 @@ def build_translator(settings: Settings) -> Translator | None:
     if settings.translator not in TRANSLATORS:
         raise ValueError(f"NUTRIASSIST_TRANSLATOR must be one of {', '.join(TRANSLATORS)}, not {settings.translator!r}")
     try:
+        from ..translation import CachingTranslator   # repeated questions reuse earlier translations
+
         if settings.translator == "gemini":
             from ..translation import GeminiTranslator
 
-            return GeminiTranslator()
+            return CachingTranslator(GeminiTranslator())
+        if settings.translator == "claude":
+            from ..translation import ClaudeTranslator
+
+            return CachingTranslator(ClaudeTranslator(model=settings.claude_model))
         from ..translation import NllbTranslator, TermAwareTranslator
 
-        return TermAwareTranslator(NllbTranslator())
-    except (ImportError, RuntimeError) as error:   # RuntimeError: no Gemini API key
+        return CachingTranslator(TermAwareTranslator(NllbTranslator()))
+    except (ImportError, RuntimeError) as error:   # RuntimeError: no Gemini or Anthropic API key
         log.warning("No %s translator (%s): Kinyarwanda questions get reviewed answers only", settings.translator, error)
         return None
 

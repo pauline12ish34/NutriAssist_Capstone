@@ -57,6 +57,10 @@ embeddings = [
 gemini = [
     "google-genai>=1.0",
 ]
+# Claude translation of Kinyarwanda questions (NUTRIASSIST_TRANSLATOR=claude, key ANTHROPIC_API_KEY).
+claude = [
+    "anthropic>=1.0",
+]
 # The Streamlit frontend (gradio_client: chat through the ZeroGPU Space on Streamlit Community Cloud).
 app = [
     "streamlit>=1.45",

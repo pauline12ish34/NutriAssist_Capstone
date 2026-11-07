@@ -156,7 +156,8 @@ class Services:
                             grounding=int(env("NUTRIASSIST_GROUNDING", Settings.grounding)),
                             checks=env("NUTRIASSIST_CHECKS", "on").lower() in {"on", "1", "true", "yes"})
         knowledge = build_knowledge_base(settings)
-        # Gemini translation needs the Space secret GEMINI_API_KEY; without it Kinyarwanda gets reviewed answers only.
+        # Gemini translation needs the Space secret GEMINI_API_KEY (Claude, with NUTRIASSIST_TRANSLATOR=claude:
+        # ANTHROPIC_API_KEY); without a key Kinyarwanda gets reviewed answers only.
         translator = build_translator(settings) if model is None else None
         # LaBSE (loaded once) for the grounding examples and the answer checks; tests pass a model and skip it.
         embedder = build_embedder(settings) if model is None else None
