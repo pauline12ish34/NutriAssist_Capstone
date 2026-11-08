@@ -36,16 +36,25 @@ so the language model is never the only safeguard.
 | **Growth check** | Weight, height and MUAC give WHO 2006 z-scores and a wasting, stunting and underweight classification. Severe cases are referred; others get feeding advice and a meal plan. See [docs/screening.md](docs/screening.md). |
 | **Meal planner** | 1–7 day plans for children aged 6–59 months from 33 local foods, with portions in tablespoons. |
 | **CHW sign-in (demo)** | Community health workers sign in with a CHW ID and a code. The IDs are made up; a real rollout would check Ministry of Health records. |
+| **Consent and privacy** | The health worker reads a consent statement to the caregiver before a growth check. A privacy page explains what is collected; the app asks for no names or locations, and unanswered questions are deleted after 90 days. |
 | **REST API** | FastAPI backend with interactive Swagger documentation for the local deployment. |
 
 ## Screenshots
 
 | | |
 |---|---|
-| ![English question answered by the fine-tuned model](docs/images/chat_en.png) | ![Danger-sign alert with a referral to the health centre](docs/images/urgent.png) |
-| **Chat**: a model answer with the "Written by AI" label | **Danger-sign alert**: answered by the safety rules |
+| ![Demo sign-in for community health workers](docs/images/sign_in.png) | ![Consent statement read to the caregiver before a growth check](docs/images/consent.png) |
+| **Sign-in**: demo CHW ID and code | **Consent**: read to the caregiver before a growth check |
+| ![English question answered by the fine-tuned model on the live app](docs/images/chat_en.png) | ![Danger-sign alert with a referral to the health centre](docs/images/urgent.png) |
+| **Chat**: a model answer on the live app, with the "Written by AI" label | **Danger-sign alert**: answered by the safety rules, without the model |
 | ![Growth check result](docs/images/growth_check_result.png) | ![Meal planner with a 7-day plan](docs/images/meal_plan.png) |
-| **Growth check**: WHO z-scores and classification | **Meal planner**: a 7-day plan from local foods |
+| **Growth check**: WHO z-scores and a follow-up result | **Meal planner**: a 7-day plan from local foods |
+| ![Kinyarwanda question with a reviewed answer](docs/images/chat_rw.png) | ![Privacy and terms page](docs/images/privacy.png) |
+| **Kinyarwanda**: the interface and a native-speaker-reviewed answer | **Privacy and terms**: what is collected and for how long |
+
+<img src="docs/images/phone_danger_sign.jpeg" alt="Danger-sign alert on the live app on an Android phone" width="260">
+
+The live app on an Android phone (Sony Xperia 10): a danger-sign question gets the referral straight away.
 
 ## Architecture
 

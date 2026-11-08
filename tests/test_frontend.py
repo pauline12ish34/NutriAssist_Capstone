@@ -43,6 +43,7 @@ def api_server():
         time.sleep(0.05)
     os.environ["NUTRIASSIST_API_URL"] = f"http://127.0.0.1:{port}"
     os.environ["NUTRIASSIST_LOGIN"] = "off"   # the sign-in page has its own tests below
+    os.environ["NUTRIASSIST_CONSENT_LOG"] = "off"   # consent recording has its own tests (test_consent.py)
     sys.modules.pop("api_client", None)  # re-read the URL
     yield
     server.should_exit = True
@@ -54,6 +55,13 @@ def start_app() -> AppTest:
     at = AppTest.from_file(APP, default_timeout=30).run()
     assert not at.exception
     at.button[0].click().run()
+    return at
+
+
+def open_growth_check(at: AppTest) -> AppTest:
+    """The growth check page, after the caregiver agreed."""
+    at.switch_page("views/screening.py").run()
+    at.button[0].click().run()   # "The caregiver agreed"
     return at
 
 
@@ -115,8 +123,7 @@ def test_plan_with_few_foods_explains_what_is_missing():
 
 
 def test_growth_check_red_muac_says_go_to_the_health_centre():
-    at = start_app()
-    at.switch_page("views/screening.py").run()
+    at = open_growth_check(start_app())
     at.number_input[0].set_value(18)
     at.radio[0].set_value("male")
     at.number_input[1].set_value(8.0)
@@ -128,8 +135,7 @@ def test_growth_check_red_muac_says_go_to_the_health_centre():
 
 
 def test_growth_check_normal_child_gets_a_meal_plan():
-    at = start_app()
-    at.switch_page("views/screening.py").run()
+    at = open_growth_check(start_app())
     at.number_input[0].set_value(24)
     at.radio[0].set_value("female")
     at.number_input[1].set_value(11.5)
@@ -142,8 +148,7 @@ def test_growth_check_normal_child_gets_a_meal_plan():
 
 
 def test_growth_check_asks_for_the_sex():
-    at = start_app()
-    at.switch_page("views/screening.py").run()
+    at = open_growth_check(start_app())
     at.number_input[1].set_value(9.0)
     at.button[0].click().run()
     assert "boy or a girl" in at.error[0].value
@@ -195,3 +200,47 @@ def test_demo_chw_signs_in_and_out(monkeypatch):
     assert "CHW-DEMO-002" in at.sidebar.caption[-1].value
     at.sidebar.button[0].click().run()
     assert at.title[0].value == "Sign in"
+
+
+def test_growth_check_asks_for_consent_before_the_form():
+    at = start_app()
+    at.switch_page("views/screening.py").run()
+    assert at.subheader[0].value == "Ask the caregiver first"
+    assert "Do you agree?" in at.info[0].value
+    assert not at.number_input
+
+
+def test_caregiver_who_does_not_agree_gets_no_form():
+    at = start_app()
+    at.switch_page("views/screening.py").run()
+    at.button[1].click().run()   # "The caregiver did not agree"
+    assert "Do not enter this child's measurements" in at.warning[0].value
+    assert not at.number_input
+
+
+def test_next_child_asks_for_consent_again():
+    at = open_growth_check(start_app())
+    at.number_input[0].set_value(24)
+    at.radio[0].set_value("female")
+    at.number_input[1].set_value(11.5)
+    at.button[0].click().run()
+    next(b for b in at.button if b.label.startswith("Next child")).click().run()
+    assert at.subheader[0].value == "Ask the caregiver first"
+    assert not at.number_input
+
+
+def test_privacy_page_lists_what_is_kept_and_the_terms():
+    at = start_app()
+    at.switch_page("views/privacy.py").run()
+    assert not at.exception
+    text = at.markdown[0].value
+    assert "Privacy policy" in text and "Terms of use" in text
+    assert "058/2021" in text and "90 days" in text
+
+
+def test_privacy_page_in_kinyarwanda():
+    at = start_app()
+    at.sidebar.radio[0].set_value("Kinyarwanda").run()
+    at.switch_page("views/privacy.py").run()
+    assert at.title[0].value == "Ibanga n'amabwiriza"
+    assert "Politiki y'ibanga" in at.markdown[0].value

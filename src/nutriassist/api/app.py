@@ -31,6 +31,31 @@ from .settings import (Settings, build_chat_model, build_checks, build_embedder,
 
 log = logging.getLogger("nutriassist.api")
 
+UNANSWERED_KEEP_DAYS = 90   # the privacy policy (app/texts.py, PRIVACY) promises this limit
+
+
+def prune_log(path: Path, keep_days: int, now: datetime | None = None) -> int:
+    """Delete the rows of a JSON-lines log older than ``keep_days``; returns how many were deleted.
+
+    A row whose time cannot be read is deleted too: keeping it would break the promise.
+    """
+    if not path.exists():
+        return 0
+    cutoff = (now or datetime.now(timezone.utc)).timestamp() - keep_days * 86400
+    kept, dropped = [], 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            fresh = datetime.fromisoformat(json.loads(line)["time"]).timestamp() >= cutoff
+        except (ValueError, KeyError, TypeError):
+            fresh = False
+        if fresh:
+            kept.append(line)
+        else:
+            dropped += 1
+    if dropped:
+        path.write_text("".join(f"{line}\n" for line in kept), encoding="utf-8")
+    return dropped
+
 
 class Services:
     """Everything the endpoints need, built once at start-up."""
@@ -54,12 +79,14 @@ class Services:
         """Keep questions with no reviewed answer, so reviewers can write answers for the common ones.
 
         Only the question text, its language and the time are stored: no user or session data.
+        Rows older than ``UNANSWERED_KEEP_DAYS`` are deleted on each write (the privacy policy's promise).
         """
         if self.unanswered_log is None or reply.source not in (ReplySource.NO_MATCH, ReplySource.OFF_TOPIC,
                                                                 ReplySource.OUT_OF_SCOPE):
             return
         try:
             self.unanswered_log.parent.mkdir(parents=True, exist_ok=True)
+            prune_log(self.unanswered_log, UNANSWERED_KEEP_DAYS)
             row = {"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "language": reply.language,
                    "question": question, "suggested": reply.suggestions}
             with self.unanswered_log.open("a", encoding="utf-8") as handle:

@@ -76,6 +76,8 @@ the growth check and a 7-day meal plan. Answer times are from question sent to a
 | Laptop (Intel i5) | Windows 11 | Edge | ✓ | 1–2 s | about 3 s | used throughout development |
 | Sony Xperia 10 phone | Android | Chrome | ✓ | 1–2 s | about 3 s | mid-range phone; all pages usable |
 
+<img src="images/phone_danger_sign.jpeg" alt="Danger-sign alert on the Sony Xperia 10" width="240">
+
 The phone and the laptops gave the same answer times because the model runs on the Space's GPU, not on the
 device: the browser only shows the page, so a mid-range phone is enough. Kinyarwanda takes about a second
 longer when the question goes through translation. These are single hand-timed checks on a quiet Space;
