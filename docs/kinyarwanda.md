@@ -1,4 +1,11 @@
-# Kinyarwanda: why the model's own answers are not shown, and what the app does instead
+# Kinyarwanda: reviewed answers first, then translation through English
+
+**In short.** The fine-tuned model writes good English but unreliable Kinyarwanda, so it never writes
+Kinyarwanda for caregivers. A Kinyarwanda question that matches a native-speaker-reviewed pair gets that
+answer word for word. Any other Kinyarwanda question is translated to English with Google Gemini,
+answered in English by the model, and the answer translated back, with a "machine-translated" label. If
+Gemini is unavailable, the app offers the closest reviewed questions instead. An earlier attempt with the
+open NLLB translation model was rejected (below).
 
 ## The problem
 
@@ -44,11 +51,11 @@ because the answers now reuse the right vocabulary; they just do not say the rig
 
 ## What the app does instead
 
-**The app shows Kinyarwanda only from reviewed answers.** Every Kinyarwanda answer in the dataset was
-approved by a native speaker; the model is never allowed to write Kinyarwanda for caregivers. The chat
-pipeline (`src/nutriassist/assistant.py`):
+**The model never writes Kinyarwanda for caregivers.** Every Kinyarwanda answer in the dataset was
+approved by a native speaker, and other Kinyarwanda answers are written in English and translated. The
+chat pipeline (`src/nutriassist/assistant.py`):
 
-1. **Danger signs** are answered by fixed messages, as before.
+1. **Danger signs and out-of-scope questions** are answered by fixed messages, without the model.
 2. **Reviewed answer** (`src/nutriassist/knowledge.py`): when the question asks the same thing as a
    stored question, one of its paraphrases or an approved extra wording, the reviewed answer is
    returned word for word. Questions made from one template ("Garama 100 z'ibijumba…" / "…z'ibirayi…")
@@ -56,17 +63,36 @@ pipeline (`src/nutriassist/assistant.py`):
    foods and illnesses and no conflicting numbers (`src/nutriassist/terms.py`). Without this check,
    "inyama y'inka" (beef) matched "inyama y'inkoko" (chicken) with a score of 0.86 and would have
    returned the wrong nutrient values.
-3. **"Did you mean…?"**: when no reviewed question is close enough, the app says it has no checked
-   answer and offers up to three reviewed questions as buttons. The caregiver taps the one that fits
+3. **Translation through English**: when no reviewed question is close enough, the question is
+   translated to English with Gemini, the fine-tuned model answers in English, the dose, referral and
+   topic checks run on the English answer, and the answer is translated back and labelled as
+   machine-translated (see [Translation with Gemini](#translation-with-gemini-used-in-the-app)).
+4. **"Did you mean…?"**: if Gemini cannot be reached, or no translator is set up, the app says it has no
+   checked answer and offers up to three reviewed questions as buttons. The caregiver taps the one that fits
    and gets its reviewed answer; the person asking, not the computer, judges whether it fits. A
    suggestion never brings in a food or illness the question did not name. With no suggestion, the
    fixed message refers the caregiver to the community health worker.
-4. Questions with no reviewed answer are kept in `logs/unanswered.jsonl` (text, language and time
+5. Questions with no reviewed answer are kept in `logs/unanswered.jsonl` (text, language and time
    only), to show reviewers which answers to write next.
-5. **English** is answered by the fine-tuned model, which writes English well, with the dose and
+6. **English** is answered by the fine-tuned model, which writes English well, with the dose and
    referral checks.
 
-## Machine translation was tried and rejected
+## Translation with Gemini (used in the app)
+
+`GeminiTranslator` (`src/nutriassist/translation.py`) sends each text whole, so lists keep their layout,
+with the project's glossary of food and health terms in the prompt; a glossary pass then fixes any term
+that is still wrong. Gemini knows the local food words that NLLB got wrong. Translation is set up so it
+does not slow the app more than needed: "thinking" is turned off (it added 10–30 s per request), busy
+models are retried with a fallback model, and repeated texts are cached.
+
+Trade-offs, stated in the app and the report:
+
+- the question and answer text are sent to Google, and the free tier has a daily limit;
+- Gemini's translations have not yet been reviewed systematically by a native speaker.
+  `scripts/compare_translators.py` prepares a blind comparison of Gemini and Claude on reviewed answers,
+  rated by a native speaker; Claude can replace Gemini with `NUTRIASSIST_TRANSLATOR=claude`.
+
+## First attempt: NLLB translation (rejected)
 
 Translating through English (Kinyarwanda question → English → model → English answer → Kinyarwanda)
 was built and evaluated (`src/nutriassist/translation.py`, `scripts/evaluate_pipeline.py`) with
@@ -94,8 +120,16 @@ mother-in-law question got the general rule and ignored the situation asked abou
 answer was meaningless ("ubishyira mu muriro kugeza ubwo hari umwijima"). Fluent but wrong Kinyarwanda
 is more dangerous than broken Kinyarwanda, because a caregiver may trust it. The automatic metrics
 rose while the answers stayed unusable: overlap metrics cannot tell whether advice is right, which is
-why the final design relies on human review. Translation remains available for evaluation
-(`NUTRIASSIST_KINYARWANDA=translate`, needs the `translate` extra) but is off in the app.
+why reviewed answers come first. NLLB remains available for evaluation (`NllbTranslator`, needs the
+`translate` extra), but the app translates with Gemini, which handles the food words and the sentences
+around them far better.
+
+## Alternative tried: RAG (not continued)
+
+RAG was also built as an alternative: the closest reviewed Kinyarwanda pairs are added to the model's
+prompt as examples, so it writes Kinyarwanda itself (`NUTRIASSIST_GROUNDING`,
+`scripts/compare_kinyarwanda_rag.py`). It reduced repetition loops but did not make answers more correct,
+so translation with Gemini was kept instead and RAG is switched off (`grounding = 0`).
 
 ## How well matching works
 
