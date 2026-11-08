@@ -124,6 +124,13 @@ why reviewed answers come first. NLLB remains available for evaluation (`NllbTra
 `translate` extra), but the app translates with Gemini, which handles the food words and the sentences
 around them far better.
 
+## Alternative tried: RAG (not continued)
+
+RAG was also built as an alternative: the closest reviewed Kinyarwanda pairs are added to the model's
+prompt as examples, so it writes Kinyarwanda itself (`NUTRIASSIST_GROUNDING`,
+`scripts/compare_kinyarwanda_rag.py`). It reduced repetition loops but did not make answers more correct,
+so translation with Gemini was kept instead and RAG is switched off (`grounding = 0`).
+
 ## How well matching works
 
 `scripts/evaluate_pipeline.py --matching-only` (tables in `outputs/pipeline/`) asks two kinds of questions:

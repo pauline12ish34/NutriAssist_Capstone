@@ -140,12 +140,6 @@ the Space's *Settings* and click **Restart Space**. To switch the model, change 
 The free Space sleeps after 48 hours without visitors; the first visit after that takes a few minutes, so
 open it before a demonstration.
 
-### Paid alternative: the Docker Space
-
-With a PRO account, the Docker app can run as it is: create a Space with SDK **Docker**, upload
-`deploy/hf-space/Dockerfile` and `deploy/hf-space/README.md`, and set `NUTRIASSIST_HF_REPO` to a repo
-holding the GGUF file. It runs on the CPU, so model answers take 15–25 seconds.
-
 ---
 
 ## Option 4: the Streamlit app online for free (Streamlit Community Cloud + the ZeroGPU Space)
