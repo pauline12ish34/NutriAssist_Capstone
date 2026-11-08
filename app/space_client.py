@@ -4,7 +4,8 @@ Streamlit Community Cloud has too little memory for the model, and Hugging Face 
 apps for free. So on Community Cloud:
 
 - **chat** goes to the ``/chat_json`` endpoint of the Gradio ZeroGPU Space (app/gradio_app.py), where the
-  safety rules, reviewed answers, translation and the fine-tuned model run on a GPU;
+  safety rules, reviewed answers, translation and the fine-tuned model run on a GPU. Danger signs are the
+  exception: they are answered here, by the same rules, so they never wait in the Space's queue;
 - the **growth check**, **meal planner** and food list run here: they are fast, pure Python and need no model.
 
 ``SpaceClient`` has the same methods and returns the same data as ``NutriAssistClient`` (the FastAPI client),
@@ -26,12 +27,34 @@ import requests
 
 from api_client import ApiError
 from nutriassist import __version__
+from nutriassist.assistant import InvalidQuestion, NutritionAssistant
+from nutriassist.inference.scripted import ScriptedChatModel
 from nutriassist.planner import FoodCatalogue, MealPlanner, PlanRequest
 from nutriassist.screening import ScreeningInputError, ScreeningRequest, screen
 
 # Space states in which the Space cannot answer. A sleeping Space wakes up on the first question.
 DOWN_STAGES = {"PAUSED", "STOPPED", "RUNTIME_ERROR", "BUILD_ERROR", "CONFIG_ERROR", "NO_APP_FILE", "DELETING"}
 WAKING_UP = "The assistant is starting up. Please try again in a minute."
+
+
+@lru_cache(maxsize=1)
+def _triage() -> NutritionAssistant:
+    """The safety rules alone, to answer danger signs here instead of on the Space.
+
+    On the Space every question waits in one queue, so an urgent message waited behind other people's model
+    answers (median 2.2 s in the live load test, docs/results/load_test/). Here it takes about a millisecond
+    and still works when the Space is asleep or out of GPU time. Only urgent questions are answered this way,
+    so the model is never called (the scripted model is a placeholder).
+    """
+    return NutritionAssistant(ScriptedChatModel(lambda question: ""))
+
+
+def _reply_dict(reply) -> dict:
+    """The fields of the Space's /chat_json reply (and the FastAPI /chat response)."""
+    return {"answer": reply.answer, "language": reply.language, "safety_level": reply.safety_level,
+            "danger_signs": list(reply.danger_signs), "source": reply.source.value, "model": reply.model_name,
+            "latency_ms": reply.latency_ms, "translated": reply.translated,
+            "matched_question": reply.matched_question, "suggestions": list(reply.suggestions)}
 
 
 @lru_cache(maxsize=1)
@@ -88,6 +111,12 @@ class SpaceClient:
         return {"status": "ok", "model": f"{self.space} (ZeroGPU)", "demo_mode": False, "version": __version__}
 
     def chat(self, question: str) -> dict:
+        triage = _triage()
+        if triage.detector.assess(question or "").is_urgent:   # danger sign: answered here, never queued
+            try:
+                return _reply_dict(triage.ask(question))
+            except InvalidQuestion:
+                pass   # too long, for example: the Space gives the usual message
         try:
             reply = self._connect(self.space, self.hf_token).predict(question, self.api_token,
                                                                      api_name="/chat_json")

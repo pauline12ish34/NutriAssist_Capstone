@@ -12,7 +12,7 @@ from nutriassist.inference.scripted import ScriptedChatModel  # noqa: E402
 from nutriassist.knowledge import KnowledgeBase, ReviewedPair, load_pairs  # noqa: E402
 from nutriassist.prompts import build_grounded_messages, build_messages  # noqa: E402
 from nutriassist.terms import KeyTerms, Terminology  # noqa: E402
-from nutriassist.translation import TermAwareTranslator, apply_glossary, split_sentences, translate_text  # noqa: E402
+from nutriassist.translation import CachingTranslator, TermAwareTranslator, apply_glossary, split_sentences, translate_text  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -314,3 +314,67 @@ def test_approved_gemini_question_wordings_are_matched(tmp_path):
     assert wording in dict((p.id, w) for p, w in load_pairs(augmented=augmented))[pair["id"]]
     knowledge = KnowledgeBase(load_pairs(augmented=augmented), threshold=DEFAULT_THRESHOLD)
     assert knowledge.find(wording, "rw").pair.id == pair["id"]
+
+
+class TestTranslationCache:
+    def test_a_repeated_question_reuses_both_translations(self):
+        translator = FakeTranslator()
+        assistant, model = TestAssistantWithReviewedAnswers().make(CachingTranslator(translator))
+        first = assistant.ask("Umwana w'amezi 9 yarya iki?")
+        second = assistant.ask("Umwana  w'amezi 9   yarya iki?")   # extra spaces: same question
+        assert len(translator.calls) == 2                            # question + answer, once only
+        assert second.answer == first.answer == "[rw] Give mashed beans."
+        assert len(model.calls) == 2                                 # the model still answers each time
+
+    def test_cached_answers_keep_the_ai_and_machine_translation_labels(self):
+        assistant, _ = TestAssistantWithReviewedAnswers().make(CachingTranslator(FakeTranslator()))
+        assistant.ask("Umwana w'amezi 9 yarya iki?")
+        reply = assistant.ask("Umwana w'amezi 9 yarya iki?")
+        assert reply.translated and reply.source is ReplySource.MODEL
+        assert reply.model_name == "scripted + fake-mt"
+
+    def test_each_direction_is_cached_separately(self):
+        translator = FakeTranslator()
+        cache = CachingTranslator(translator)
+        assert cache.translate(["amata"], "rw", "en") == ["[en] amata"]
+        assert cache.translate(["amata"], "en", "rw") == ["[rw] amata"]
+        assert len(translator.calls) == 2
+
+    def test_only_missing_texts_are_sent(self):
+        translator = FakeTranslator()
+        cache = CachingTranslator(translator)
+        cache.translate(["a", "b"], "en", "rw")
+        assert cache.translate(["b", "c", "a"], "en", "rw") == ["[rw] b", "[rw] c", "[rw] a"]
+        assert translator.calls[-1] == ("en", "rw", ["c"]) and cache.hits == 2
+
+    def test_failures_are_not_cached(self):
+        class FlakyTranslator(FakeTranslator):
+            def translate(self, texts, source, target):
+                if not self.calls:
+                    self.calls.append("failed")
+                    raise ConnectionError("429 RESOURCE_EXHAUSTED")
+                return super().translate(texts, source, target)
+
+        cache = CachingTranslator(FlakyTranslator())
+        with pytest.raises(ConnectionError):
+            cache.translate(["amata"], "rw", "en")
+        assert cache.translate(["amata"], "rw", "en") == ["[en] amata"]
+
+    def test_oldest_entries_are_forgotten_first(self):
+        translator = FakeTranslator()
+        cache = CachingTranslator(translator, max_entries=2)
+        cache.translate(["a"], "en", "rw")
+        cache.translate(["b"], "en", "rw")
+        cache.translate(["a"], "en", "rw")          # a is now the most recent
+        cache.translate(["c"], "en", "rw")          # b is forgotten
+        calls = len(translator.calls)
+        cache.translate(["a"], "en", "rw")
+        assert len(translator.calls) == calls
+        cache.translate(["b"], "en", "rw")
+        assert len(translator.calls) == calls + 1
+
+    def test_whole_text_setting_is_passed_through(self):
+        class WholeText(FakeTranslator):
+            whole_text = True
+
+        assert CachingTranslator(WholeText()).whole_text and not CachingTranslator(FakeTranslator()).whole_text

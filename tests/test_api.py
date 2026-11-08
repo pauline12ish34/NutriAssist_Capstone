@@ -225,3 +225,30 @@ def test_chat_response_accepts_every_reply_source():
 
     allowed = set(get_args(ChatResponse.model_fields["source"].annotation))
     assert {source.value for source in ReplySource} <= allowed
+
+
+def test_danger_signs_and_growth_checks_do_not_wait_behind_the_model():
+    """Found by the load test (scripts/load_test/): the whole /chat request used to be locked, so an urgent
+    answer waited until another person's model answer was finished."""
+    import threading
+    import time
+
+    model_started = threading.Event()
+
+    def slow_model(question):
+        model_started.set()
+        time.sleep(2.0)
+        return "Give mashed beans."
+
+    with TestClient(create_app(model=ScriptedChatModel(slow_model))) as client:
+        busy = threading.Thread(target=client.post, args=("/chat",), kwargs={"json": {"question": "What can my baby eat?"}})
+        busy.start()
+        assert model_started.wait(5)
+        start = time.perf_counter()
+        urgent = client.post("/chat", json={"question": "My child is having a seizure"})
+        growth = client.post("/screening", json={"age_months": 12, "sex": "male", "weight_kg": 7.0, "height_cm": 72.0,
+                                                 "muac_cm": 12.0, "oedema": False, "breastfed": True, "language": "en"})
+        waited = time.perf_counter() - start
+        busy.join()
+    assert urgent.json()["safety_level"] == "urgent" and growth.status_code == 200
+    assert waited < 1.0, f"urgent answer and growth check waited {waited:.1f} s behind the model"
