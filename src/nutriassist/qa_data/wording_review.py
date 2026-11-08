@@ -1,6 +1,6 @@
 """Native-speaker review of extra Kinyarwanda question wordings, which help the app recognise questions.
 
-The app answers Kinyarwanda only from reviewed answers, so it must recognise a question however a
+The app prefers a reviewed answer to a machine translation, so it must recognise a question however a
 caregiver words it. Extra wordings for the reviewed pairs are drafted in
 ``data/QA_data/curated/extra_wordings_rw.jsonl`` (one row per pair: ``{"id": ..., "wordings": [...]}``)
 and reviewed one by one:

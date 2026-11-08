@@ -65,10 +65,62 @@ Produced by `scripts/benchmark.py`.
 | Linux, Windows, macOS (Python 3.12) and Linux (Python 3.10) | GitHub Actions runs the full test suite on each push (`.github/workflows/tests.yml`) | all pass |
 | Windows 11 laptop, CPU only | Docker app and `scripts/benchmark.py` (above) | works; 8 s per model answer |
 | Hugging Face ZeroGPU Space | live measurements (above) | works; 4.6 s per model answer |
-| Browsers and phones | manual check of the Space: chat, language switch, 7-day plan | _fill in_ |
+| Browsers and phones | manual check of the live Streamlit app (8 November 2026): every feature on each device | all features work |
 
-| Device | Operating system | Browser | Chat | Kinyarwanda switch | Meal plan | Notes |
+Each check covered sign-in, chat in English and Kinyarwanda, a danger-sign question, an out-of-scope question,
+the growth check and a 7-day meal plan. Answer times are from question sent to answer shown, timed by hand.
+
+| Device | Operating system | Browser | All features | English answer | Kinyarwanda answer | Notes |
 |---|---|---|---|---|---|---|
-| Laptop | Windows 11 | Chrome | | | | |
-| Laptop | Windows 11 | Edge or Firefox | | | | |
-| Phone | Android / iOS | Chrome / Safari | | | | |
+| Laptop (Intel i5) | Windows 11 | Chrome | ✓ | 1–2 s | about 3 s | used throughout development |
+| Laptop (Intel i5) | Windows 11 | Edge | ✓ | 1–2 s | about 3 s | used throughout development |
+| Sony Xperia 10 phone | Android | Chrome | ✓ | 1–2 s | about 3 s | mid-range phone; all pages usable |
+
+The phone and the laptops gave the same answer times because the model runs on the Space's GPU, not on the
+device: the browser only shows the page, so a mid-range phone is enough. Kinyarwanda takes about a second
+longer when the question goes through translation. These are single hand-timed checks on a quiet Space;
+the [load test](results/load_test/) shows how times grow when several people use it at once.
+
+## Load testing (Locust)
+
+Two load tests check that urgent answers stay fast while other people keep the model busy. Raw results,
+Locust reports and charts are in [results/load_test/](results/load_test/).
+
+### Live app: Streamlit app + ZeroGPU Space
+
+`scripts/load_test/locustfile_space.py`, 4 users for 2 minutes: 2 caregivers asking the model, 1 caregiver
+reporting danger signs and 1 visitor opening the web page. It calls the Space exactly as the Streamlit app does.
+
+| Median response time | Before (7 Nov 2026) | After (8 Nov 2026) |
+|---|---|---|
+| Danger-sign answer | 2.2 s (21 requests, 0 failed) | **1 ms** (38 requests, 0 failed) |
+| Model answer | 3.8 s (36 requests, 0 failed) | 3.8 s (34 requests, 6 failed) |
+| Open web page | 700 ms | 610 ms |
+
+**Improvement made:** before, danger signs went to the Space and waited in its queue with everyone else.
+Now the Streamlit app answers danger signs and out-of-scope questions itself with the same safety rules
+(`app/space_client.py`), so they never wait for the GPU. Model answers are unchanged, as expected. The 6
+failed model answers in the second run were the Space replying "not available right now" in the last
+40 seconds, most likely ZeroGPU's quota or queue limits; the danger-sign answers were not affected.
+
+![Live app before and after](results/load_test/space_before_after.png)
+
+### Local API on the laptop CPU
+
+`scripts/load_test/run.py`: 1 caregiver reporting danger signs and 1 health worker (growth checks and meal
+plans), plus 0–8 caregivers asking the model, 90 s per step, against the FastAPI backend with the CPU model.
+
+| Danger-sign answer, median | 1 model user | 2 | 4 | 8 |
+|---|---|---|---|---|
+| Before (7 Nov 2026) | 6.4 s | 6.8 s | 18 s | timed out (1,420 s) |
+| After (8 Nov 2026) | 0.19 s | 7 ms | 83 ms | **14 ms** |
+
+**Improvement made:** before, a lock held during the whole request meant one model answer blocked every
+other request, including danger signs. The lock now covers only text generation
+(`src/nutriassist/inference/llamacpp_model.py`), so danger signs, growth checks and meal plans are answered
+while the model is busy. Model answers still queue one after another on a single CPU (71 s median with 8
+people), which is why the live app uses a GPU. In the after run the 4-user step stalled for about 4 minutes
+(cause not found; the test runs offline, but it was at the time the laptop's Wi-Fi dropped), so that step has only 1 danger-sign request and its
+model answers timed out; the other steps ran normally.
+
+![Local API before and after](results/load_test/load_test.png)

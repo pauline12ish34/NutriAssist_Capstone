@@ -179,7 +179,7 @@ EXAMPLES = {
         "What should I eat while breastfeeding?",
         "My child has a fever, what should she eat?",
     ],
-    # Reviewed questions, so each example gets its approved answer (Kinyarwanda comes only from reviewed answers).
+    # Reviewed questions, so each example gets its approved answer (the reviewed answer is shown instead of a translated one).
     "rw": [
         "Umwana w'amezi 9 akwiye kurya angana iki?",
         "Ni ibihe biryo byo mu Rwanda bikungahaye ku butare?",
@@ -222,6 +222,8 @@ monitoring or the child's health booklet). Tick the box if both feet are swollen
 ### Where the information comes from
 - Answers: a language model fine-tuned on 513 question-answer pairs on child and maternal nutrition,
   checked for safety and reviewed in Kinyarwanda by a native speaker.
+- Kinyarwanda questions with no reviewed answer are translated by a computer (Google Gemini). Those answers
+  are labelled as machine-translated and may contain mistakes.
 - Meal plans: a food composition workbook from a nutritionist in Kigali, with 5 sheets of foods: **2,395 foods**,
   each with 33 nutrients. The planner uses **33 common Rwandan foods** from it, with values checked against
   USDA, and WHO/FAO nutrient needs for the child's age.
@@ -263,6 +265,8 @@ bibyimbye. Kanda *Suzuma imikurire*:
 ### Amakuru akomoka he
 - Ibisubizo: porogaramu y'ururimi yatojwe ku bibazo n'ibisubizo 513 ku mirire y'abana n'ababyeyi,
   byagenzuwe ku mutekano kandi Ikinyarwanda cyasuzumwe n'ukivuga kavukire.
+- Ibibazo by'Ikinyarwanda bidafite igisubizo cyasuzumwe bihindurwa na mudasobwa (Google Gemini). Ibyo bisubizo
+  biranditseho ko byahinduwe na mudasobwa kandi bishobora kugira amakosa.
 - Gahunda y'amafunguro: imbonerahamwe y'ibiribwa yatanzwe n'inzobere mu mirire i Kigali, ifite impapuro 5:
   **ibiribwa 2.395**, buri kimwe gifite intungamubiri 33. Gahunda ikoresha **ibiribwa 33 bisanzwe mu Rwanda**
   biyirimo, agaciro kabyo kagenzuwe hakoreshejwe USDA, n'ibyo umubiri ukeneye bya OMS/FAO bijyanye n'imyaka
