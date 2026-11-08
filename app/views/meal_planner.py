@@ -31,7 +31,7 @@ def plan_as_text(plan: dict) -> str:
     return "\n".join(lines)
 
 
-st.title(f"🍲 {t('page_planner')}")
+st.title(t("page_planner"))
 st.caption(t("planner_intro"))
 
 try:
@@ -68,7 +68,7 @@ if plan:
             with tab:
                 show_day(day)
 
-    st.subheader(f"💡 {t('tips')}")
+    st.subheader(t("tips"))
     for tip in plan["tips"]:
         st.markdown(f"- {tip}")
-    st.download_button(t("download"), plan_as_text(plan), file_name="nutriassist_meal_plan.txt", icon="⬇️")
+    st.download_button(t("download"), plan_as_text(plan), file_name="nutriassist_meal_plan.txt", icon=":material/download:")

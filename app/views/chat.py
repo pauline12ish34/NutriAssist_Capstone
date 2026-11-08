@@ -11,7 +11,7 @@ client = make_client()
 st.session_state.setdefault("messages", [])
 st.session_state.setdefault("pending_question", None)   # a "Did you mean...?" button that was tapped
 
-st.title(f"💬 {t('page_chat')}")
+st.title(t("page_chat"))
 st.caption(t("chat_intro"))
 
 
@@ -30,13 +30,13 @@ def show_message(message: dict, index: int | None = None) -> None:
             for n, suggestion in enumerate(meta.get("suggestions") or []):
                 # Only the latest answer's suggestions can be tapped; older ones are shown as text.
                 if index == len(st.session_state.messages) - 1:
-                    if st.button(suggestion, key=f"suggestion-{index}-{n}", icon="❓", use_container_width=True):
+                    if st.button(suggestion, key=f"suggestion-{index}-{n}", icon=":material/help:", use_container_width=True):
                         st.session_state.pending_question = suggestion
                         st.rerun()
                 else:
                     st.markdown(f"- {suggestion}")
             if meta["source"] in ("model", "model+referral_note"):   # only AI-written answers get a label
-                st.caption(f"🤖 {t('ai_warning')}")
+                st.caption(f":material/smart_toy: {t('ai_warning')}")
 
 
 for i, message in enumerate(st.session_state.messages):
@@ -70,6 +70,6 @@ if question:
         st.session_state.messages.append(assistant_message)
         st.rerun()
 
-if st.session_state.messages and st.button(t("clear_chat"), icon="🗑️"):
+if st.session_state.messages and st.button(t("clear_chat"), icon=":material/delete:"):
     st.session_state.messages = []
     st.rerun()

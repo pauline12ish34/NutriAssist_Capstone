@@ -10,7 +10,7 @@ from plan_view import show_day
 client = make_client()
 BOX = {"severe": st.error, "moderate": st.warning, "check": st.info, "normal": st.success}
 
-st.title(f"📏 {t('page_screening')}")
+st.title(t("page_screening"))
 st.caption(t("screening_intro"))
 
 with st.form("screening_form"):
@@ -31,17 +31,17 @@ with st.form("screening_form"):
 if submitted:
     if sex is None:
         st.session_state.pop("screening", None)
-        st.error(f"⚠️ {t('s_need_sex')}")
+        st.error(t("s_need_sex"), icon=":material/error:")
     elif weight is None:
         st.session_state.pop("screening", None)
-        st.error(f"⚠️ {t('s_need_weight')}")
+        st.error(t("s_need_weight"), icon=":material/error:")
     else:
         try:
             st.session_state.screening = client.screening(int(age), sex, weight, height or None, muac or None,
                                                           oedema, breastfed, language())
         except ApiError as error:
             st.session_state.pop("screening", None)
-            st.error(f"⚠️ {error.message}")
+            st.error(error.message, icon=":material/error:")
 
 result = st.session_state.get("screening")
 if result:
@@ -60,13 +60,13 @@ if result:
         st.caption(note)
 
     if result["tips"]:
-        st.subheader(f"💡 {t('s_advice')}")
+        st.subheader(t("s_advice"))
         for tip in result["tips"]:
             st.markdown(f"- {tip}")
 
     plan = result.get("meal_plan")
     if plan:
-        st.subheader(f"🍲 {t('s_plan')}")
+        st.subheader(t("s_plan"))
         if plan["adjustments"]:
             st.info(f"**{t('adjusted_for')}:**" + "".join(f"\n- {a}" for a in plan["adjustments"]))
         show_day(plan["days"][0])

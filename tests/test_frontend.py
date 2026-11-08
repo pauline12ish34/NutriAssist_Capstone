@@ -59,10 +59,10 @@ def start_app() -> AppTest:
 
 def test_disclaimer_comes_before_the_chat():
     at = AppTest.from_file(APP, default_timeout=30).run()
-    assert at.title[0].value == "⚠️ Before you start"
+    assert at.title[0].value == "Before you start"
     assert "912" in at.markdown[0].value and not at.chat_input
     at.button[0].click().run()
-    assert at.title[0].value == "💬 Ask a question"
+    assert at.title[0].value == "Ask a question"
 
 
 def test_sidebar_shows_the_server_is_online():
@@ -89,7 +89,7 @@ def test_danger_sign_in_kinyarwanda_shows_the_urgent_alert():
 def test_switching_to_kinyarwanda_translates_the_interface():
     at = start_app()
     at.sidebar.radio[0].set_value("Kinyarwanda").run()
-    assert at.title[0].value == "💬 Baza ikibazo"
+    assert at.title[0].value == "Baza ikibazo"
 
 
 def test_week_plan_in_kinyarwanda_has_seven_days():
@@ -159,7 +159,7 @@ def test_how_to_use_page_renders():
 def test_sign_in_comes_first_when_login_is_on(monkeypatch):
     monkeypatch.setenv("NUTRIASSIST_LOGIN", "on")
     at = AppTest.from_file(APP, default_timeout=30).run()
-    assert at.title[0].value == "🔐 Sign in"
+    assert at.title[0].value == "Sign in"
     assert not at.chat_input
 
 
@@ -171,7 +171,7 @@ def test_wrong_code_is_refused_without_saying_which_part_is_wrong(monkeypatch):
         at.text_input[1].set_value(code)
         at.button[0].click().run()
         assert at.error[0].value == "The CHW ID or the code is not correct."
-        assert at.title[0].value == "🔐 Sign in"
+        assert at.title[0].value == "Sign in"
 
 
 def test_too_many_wrong_attempts_lock_the_form(monkeypatch):
@@ -191,7 +191,7 @@ def test_demo_chw_signs_in_and_out(monkeypatch):
     at.text_input[0].set_value(" chw-demo-002 ")
     at.text_input[1].set_value("123456")
     at.button[0].click().run()
-    assert at.title[0].value == "⚠️ Before you start"
+    assert at.title[0].value == "Before you start"
     assert "CHW-DEMO-002" in at.sidebar.caption[-1].value
     at.sidebar.button[0].click().run()
-    assert at.title[0].value == "🔐 Sign in"
+    assert at.title[0].value == "Sign in"
