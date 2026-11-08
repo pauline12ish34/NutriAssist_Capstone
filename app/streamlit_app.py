@@ -82,7 +82,8 @@ def sign_in_page() -> None:
 
 
 def sign_out() -> None:
-    for key in ("chw_id", "disclaimer_accepted", "messages", "screening"):
+    # Everything this browser session holds: a lost or shared tablet keeps no family data after sign-out.
+    for key in ("chw_id", "disclaimer_accepted", "messages", "screening", "consent"):
         st.session_state.pop(key, None)
 
 
@@ -119,5 +120,6 @@ navigation = st.navigation([
     st.Page("views/screening.py", title=t("page_screening"), icon=":material/monitor_weight:"),
     st.Page("views/meal_planner.py", title=t("page_planner"), icon=":material/restaurant:"),
     st.Page("views/about.py", title=t("page_about"), icon=":material/info:"),
+    st.Page("views/privacy.py", title=t("page_privacy"), icon=":material/policy:"),
 ])
 navigation.run()

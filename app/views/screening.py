@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from api_client import ApiError, make_client
+from consent import AGREED, DECLINED, record_consent
 from i18n import language, t
 from plan_view import show_day
 
@@ -12,6 +13,29 @@ BOX = {"severe": st.error, "moderate": st.warning, "check": st.info, "normal": s
 
 st.title(t("page_screening"))
 st.caption(t("screening_intro"))
+
+
+def new_child() -> None:
+    """Forget the last child's result and consent: each child needs the caregiver's own agreement."""
+    for key in ("screening", "consent"):
+        st.session_state.pop(key, None)
+
+
+# Consent first: the CHW reads the text to the caregiver and records the answer (app/consent.py).
+if st.session_state.get("consent") != AGREED:
+    st.subheader(t("consent_title"))
+    st.info(t("consent_script"), icon=":material/record_voice_over:")
+    agreed, declined = st.columns(2)
+    if agreed.button(t("consent_agree"), type="primary", use_container_width=True):
+        record_consent(AGREED, st.session_state.get("chw_id"), language())
+        st.session_state.consent = AGREED
+        st.rerun()
+    if declined.button(t("consent_decline"), use_container_width=True):
+        record_consent(DECLINED, st.session_state.get("chw_id"), language())
+        st.session_state.consent = DECLINED
+    if st.session_state.get("consent") == DECLINED:
+        st.warning(t("consent_declined"), icon=":material/block:")
+    st.stop()
 
 with st.form("screening_form"):
     left, right = st.columns(2)
@@ -72,3 +96,5 @@ if result:
         show_day(plan["days"][0])
         for tip in plan["tips"]:
             st.markdown(f"- {tip}")
+
+    st.button(t("consent_next_child"), icon=":material/person_add:", on_click=new_child, use_container_width=True)

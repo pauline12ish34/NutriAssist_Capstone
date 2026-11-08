@@ -32,7 +32,8 @@ TEXT: dict[str, dict[str, str]] = {
             "- Answers written by AI can contain **mistakes**. Check important decisions with your health worker.\n"
             "- It does **not diagnose illness or give medicine doses**.\n"
             "- In an **emergency**, go to the nearest health centre or call **912**.\n"
-            "- Do not type your name or other personal details. Questions are not saved with personal information."
+            "- Do not type your name or other personal details. Questions are not saved with personal information.\n"
+            "- By continuing you accept the **Privacy policy and terms of use** (page *Privacy and terms*)."
         ),
         "rw": (
             "- NutriAssist-RW ni **umushinga w'umunyeshuri**. Itanga inama rusange ku mirire; **si muganga cyangwa "
@@ -41,7 +42,8 @@ TEXT: dict[str, dict[str, str]] = {
             "w'ubuzima.\n"
             "- **Ntisuzuma indwara kandi ntitanga ingano y'imiti**.\n"
             "- Mu **bihe byihutirwa**, jya ku kigo nderabuzima kiri hafi cyangwa uhamagare **912**.\n"
-            "- Ntwandike izina ryawe cyangwa andi makuru akwerekeyeho. Ibibazo ntibibikwa hamwe n'amakuru yawe bwite."
+            "- Ntwandike izina ryawe cyangwa andi makuru akwerekeyeho. Ibibazo ntibibikwa hamwe n'amakuru yawe bwite.\n"
+            "- Ukomeje, uba wemeye **Politiki y'ibanga n'amabwiriza y'imikoreshereze** (ipaji *Ibanga n'amabwiriza*)."
         ),
     },
     "disclaimer_accept": {"en": "I understand, continue", "rw": "Ndabyumvise, komeza"},
@@ -170,6 +172,34 @@ TEXT: dict[str, dict[str, str]] = {
     "z_wfa": {"en": "Weight-for-age", "rw": "Ibiro ugereranyije n'imyaka"},
     "z_hfa": {"en": "Height-for-age", "rw": "Uburebure ugereranyije n'imyaka"},
     "z_wfh": {"en": "Weight-for-height", "rw": "Ibiro ugereranyije n'uburebure"},
+    # Caregiver consent before a growth check (app/consent.py) and the privacy page.
+    # NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
+    "consent_title": {"en": "Ask the caregiver first", "rw": "Banza ubaze umubyeyi"},
+    "consent_script": {
+        "en": ("**Read this to the mother or caregiver:**\n\n"
+               "\"I would like to enter your child's age, sex, weight, height and arm measurement (MUAC) in this "
+               "app. It will tell us if your child is growing well and suggest meals. I will not enter your name, "
+               "your child's name or where you live. The measurements are not saved after this check. You can say "
+               "no, and I will still help you as usual. Do you agree?\""),
+        "rw": ("**Soma ibi ubibwira umubyeyi cyangwa urera umwana:**\n\n"
+               "\"Ndifuza kwandika muri iyi porogaramu imyaka y'umwana wawe, igitsina, ibiro, uburebure n'igipimo "
+               "cy'ukuboko (MUAC). Izatubwira niba umwana akura neza kandi itange inama z'amafunguro. Sinandika "
+               "izina ryawe, iry'umwana cyangwa aho mutuye. Ibipimo ntibibikwa nyuma y'iri suzuma. Ushobora "
+               "kwanga, kandi nzakomeza kugufasha nk'uko bisanzwe. Urabyemera?\""),
+    },
+    "consent_agree": {"en": "The caregiver agreed", "rw": "Umubyeyi yabyemeye"},
+    "consent_decline": {"en": "The caregiver did not agree", "rw": "Umubyeyi ntiyabyemeye"},
+    "consent_declined": {
+        "en": ("Do not enter this child's measurements. Use the paper growth chart in the child's health booklet, "
+               "and refer the child to the health centre if you see a danger sign. The chat and meal planner "
+               "can still give general advice."),
+        "rw": ("Ntwandike ibipimo by'uyu mwana. Koresha ishusho y'imikurire iri mu gatabo k'ubuzima bw'umwana, "
+               "kandi wohereze umwana ku kigo nderabuzima niba ubonye ikimenyetso cy'akaga. Ibiganiro na gahunda "
+               "y'amafunguro biracyatanga inama rusange."),
+    },
+    "consent_next_child": {"en": "Next child (asks for consent again)",
+                           "rw": "Undi mwana (ongera usabe uruhushya)"},
+    "page_privacy": {"en": "Privacy and terms", "rw": "Ibanga n'amabwiriza"},
 }
 
 EXAMPLES = {
@@ -271,5 +301,154 @@ bibyimbye. Kanda *Suzuma imikurire*:
   **ibiribwa 2.395**, buri kimwe gifite intungamubiri 33. Gahunda ikoresha **ibiribwa 33 bisanzwe mu Rwanda**
   biyirimo, agaciro kabyo kagenzuwe hakoreshejwe USDA, n'ibyo umubiri ukeneye bya OMS/FAO bijyanye n'imyaka
   y'umwana.
+""",
+}
+
+# Privacy policy and terms of use (page "Privacy and terms", app/views/privacy.py). Every promise here is
+# kept by the code named in ethics/privacy_policy.md; change both together.
+# NEEDS REVIEW: the Kinyarwanda version was drafted by Claude and not yet checked by a native speaker.
+PRIVACY_VERSION = "8 November 2026"
+
+PRIVACY = {
+    "en": f"""
+*Version of {PRIVACY_VERSION}. NutriAssist-RW is a student capstone project at the African Leadership University
+(ALU). It was reviewed by the ALU Research Ethics Committee (approval SEPT26-BSE-062). It is not yet an official
+Ministry of Health or RBC service.*
+
+### Part 1: Privacy policy
+
+**1. What the app collects, and what it does not**
+
+| What | Why | Kept? |
+|---|---|---|
+| Your CHW ID | to sign you in | Only while you are signed in, in this browser |
+| The caregiver's answer to the consent question, with the time, your CHW ID and the language | to show that consent was asked before a growth check | Yes, until the study ends (see 4) |
+| A child's age in months, sex, weight, height, MUAC, swollen feet, breastfed or not | to check growth and plan meals | **No.** Used for the calculation, then gone when you tap *Next child* or close the page |
+| Chat questions | to answer them | Not by this app. Questions it could not answer may be kept for up to 90 days, with no name or ID, so that reviewers can write checked answers |
+
+The app **never asks for** names, phone numbers, dates of birth, addresses, village or GPS location, or
+photos. Please do not type them in the chat.
+
+**2. Who else handles the data**
+
+To work, the app uses three online services. They are outside Rwanda:
+- **Streamlit Community Cloud** runs this website.
+- **Hugging Face** runs the AI model that writes answers.
+- **Google Gemini** translates a Kinyarwanda question that has no checked answer into English and back.
+  Only the question and the answer text are sent.
+
+No data is sold or shared for advertising.
+
+**3. How it is protected**
+- Each CHW signs in with their own ID and code. After 5 wrong codes the form locks.
+- Signing out clears everything from the browser.
+- Because no child or family data is saved, a lost or shared tablet holds no family records.
+- Secret keys are kept in the hosting service's secret settings, not in the code.
+
+**4. How long data is kept**
+- Session data (CHW ID, measurements, chat): deleted when you sign out or close the page.
+- Consent records: kept until the end of the study (the ethics approval runs to May 2027), then deleted.
+- Unanswered questions: deleted after 90 days.
+
+**5. Your rights**
+
+Under Rwanda's Law No. 058/2021 relating to the protection of personal data and privacy, you can:
+- ask what is held about you
+- ask for it to be corrected or deleted
+- withdraw consent at any time without losing any health service
+
+Consent records hold no names, so a record can be found only by CHW ID and date. To use these rights, or
+for any question, contact the student developer at **p.ishimwe1@alustudent.com**.
+
+### Part 2: Terms of use
+
+1. **Advice, not treatment.** The app gives general nutrition advice. It is not a doctor or a health worker,
+   does not diagnose illness and does not give medicine doses.
+2. **AI can be wrong.** Answers marked *Written by AI* or *translated by a computer* may contain mistakes.
+   Check important decisions with a health worker. Danger signs get a fixed referral message, not an AI answer.
+3. **Emergencies:** go to the nearest health centre or call **912**.
+4. **Who may use it.** During the pilot: community health workers and caregivers taking part in the study.
+   Use it only to support the health of children under 5 and their mothers.
+5. **Not allowed:** entering a child's data without the caregiver's agreement, typing names or phone
+   numbers, or using the app to harm anyone. The AI model is based on Google's Gemma, so its use must also
+   follow the Gemma Terms of Use and Prohibited Use Policy.
+6. **Ownership.** The app's code and checked answers are the student's own work. Third-party libraries,
+   models and data keep their own licences (listed in the project's ethics report).
+7. **No guarantee.** This is a student project, given as it is, without any guarantee that it is always
+   available or error-free.
+8. **Changes.** If these terms change, the date at the top changes and the consent question is asked again.
+""",
+    "rw": f"""
+*Verisiyo yo ku wa {PRIVACY_VERSION}. NutriAssist-RW ni umushinga w'umunyeshuri wa kaminuza ya African Leadership
+University (ALU). Wasuzumwe na Komite y'Imyitwarire mu Bushakashatsi ya ALU (uruhushya SEPT26-BSE-062).
+Ntabwo iraba serivisi yemewe ya Minisiteri y'Ubuzima cyangwa RBC.*
+
+### Igice cya 1: Politiki y'ibanga
+
+**1. Ibyo porogaramu ifata, n'ibyo idafata**
+
+| Iki | Kubera iki | Birabikwa? |
+|---|---|---|
+| Nimero yawe y'umujyanama w'ubuzima | kugira ngo winjire | Mu gihe winjiye gusa, muri iyi mudasobwa |
+| Igisubizo cy'umubyeyi ku ruhushya, igihe, nimero yawe n'ururimi | kwerekana ko uruhushya rwasabwe mbere y'isuzuma | Yego, kugeza ubushakashatsi burangiye (reba 4) |
+| Imyaka y'umwana mu mezi, igitsina, ibiro, uburebure, MUAC, kubyimba ibirenge, niba yonka | gusuzuma imikurire no gutegura amafunguro | **Oya.** Bikoreshwa mu kubara, hanyuma bigasibwa iyo ukanze *Undi mwana* cyangwa ufunze ipaji |
+| Ibibazo byo mu biganiro | kubisubiza | Iyi porogaramu ntibibika. Ibibazo itashoboye gusubiza bishobora kubikwa iminsi 90 nta zina cyangwa nimero, kugira ngo abasuzuma bandike ibisubizo byagenzuwe |
+
+Porogaramu **ntiyigera isaba** amazina, nimero za telefoni, amatariki y'amavuko, aho mutuye, umudugudu
+cyangwa aho uherereye (GPS), cyangwa amafoto. Ntubyandike mu biganiro.
+
+**2. Abandi bakoresha amakuru**
+
+Porogaramu ikoresha serivisi eshatu zo kuri interineti ziri hanze y'u Rwanda:
+- **Streamlit Community Cloud** ikoresha uru rubuga.
+- **Hugging Face** ikoresha porogaramu ya AI yandika ibisubizo.
+- **Google Gemini** ihindura mu Cyongereza ikibazo cy'Ikinyarwanda kidafite igisubizo cyagenzuwe,
+  hanyuma igasubiza mu Kinyarwanda. Hoherezwa gusa inyandiko y'ikibazo n'igisubizo.
+
+Nta makuru agurishwa cyangwa atangwa ku bw'amatangazo.
+
+**3. Uko arindwa**
+- Buri mujyanama w'ubuzima yinjira akoresheje nimero ye n'umubare w'ibanga. Nyuma yo kwibeshya inshuro 5,
+  ifishi irafunga.
+- Gusohoka bisiba byose muri mudasobwa.
+- Kubera ko nta makuru y'umwana cyangwa y'umuryango abikwa, tableti yatakaye cyangwa isangiwe nta makuru
+  y'imiryango iba ifite.
+- Imibare y'ibanga ya serivisi ibikwa mu igenamiterere ry'ibanga, si muri kode.
+
+**4. Igihe amakuru amara**
+- Amakuru y'igihe ukoresha (nimero yawe, ibipimo, ibiganiro): asibwa iyo usohotse cyangwa ufunze ipaji.
+- Inyandiko z'uruhushya: zibikwa kugeza ubushakashatsi burangiye (uruhushya rw'imyitwarire rugeza muri
+  Gicurasi 2027), hanyuma zigasibwa.
+- Ibibazo bitasubijwe: bisibwa nyuma y'iminsi 90.
+
+**5. Uburenganzira bwawe**
+
+Hakurikijwe Itegeko N° 058/2021 ryerekeye kurinda amakuru bwite n'ubuzima bwite, ushobora:
+- kubaza amakuru akwerekeyeho abitswe
+- gusaba ko akosorwa cyangwa asibwa
+- kwisubiraho ku ruhushya igihe icyo ari cyo cyose, utabuze serivisi y'ubuzima
+
+Inyandiko z'uruhushya nta mazina zigira, bityo zishakishwa gusa hakoreshejwe nimero y'umujyanama n'itariki.
+Ku bibazo, wandikire umunyeshuri wakoze porogaramu kuri **p.ishimwe1@alustudent.com**.
+
+### Igice cya 2: Amabwiriza y'imikoreshereze
+
+1. **Inama, si ubuvuzi.** Porogaramu itanga inama rusange ku mirire. Si muganga cyangwa umukozi w'ubuzima,
+   ntisuzuma indwara kandi ntitanga ingano y'imiti.
+2. **AI ishobora kwibeshya.** Ibisubizo byanditseho *Cyanditswe na AI* cyangwa *cyahinduwe na mudasobwa*
+   bishobora kugira amakosa. Ku byemezo bikomeye, baza umukozi w'ubuzima. Ibimenyetso by'akaga bihabwa
+   ubutumwa buhoraho bwo kohereza ku kigo nderabuzima, si igisubizo cya AI.
+3. **Ibihe byihutirwa:** jya ku kigo nderabuzima kiri hafi cyangwa uhamagare **912**.
+4. **Abemerewe kuyikoresha.** Mu igerageza: abajyanama b'ubuzima n'ababyeyi bari mu bushakashatsi.
+   Uyikoreshe gusa mu gufasha ubuzima bw'abana bari munsi y'imyaka 5 n'ababyeyi babo.
+5. **Ntibyemewe:** kwandika amakuru y'umwana umubyeyi atabyemeye, kwandika amazina cyangwa nimero za
+   telefoni, cyangwa gukoresha porogaramu mu kugirira nabi umuntu. Porogaramu ya AI ishingiye kuri Gemma ya
+   Google, bityo ikoreshwa ryayo rigomba no kubahiriza amabwiriza ya Gemma (Gemma Terms of Use na Prohibited
+   Use Policy).
+6. **Nyir'umutungo.** Kode ya porogaramu n'ibisubizo byagenzuwe ni umurimo bwite w'umunyeshuri. Amasomero,
+   porogaramu za AI n'amakuru by'abandi bigumana impushya zabyo (zanditse muri raporo y'imyitwarire y'umushinga).
+7. **Nta cyizere gitangwa.** Uyu ni umushinga w'umunyeshuri, utangwa uko uri, nta cyizere ko uhora ukora
+   cyangwa ko nta makosa ugira.
+8. **Impinduka.** Aya mabwiriza nahinduka, itariki iri hejuru irahinduka kandi uruhushya rukongera gusabwa.
 """,
 }
