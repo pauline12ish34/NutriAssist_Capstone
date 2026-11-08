@@ -65,6 +65,16 @@ def test_danger_signs_are_answered_even_when_the_space_is_down():
     assert reply["safety_level"] == "urgent" and reply["source"] == "safety_rule"
 
 
+@pytest.mark.parametrize("question", ["What should my grandma eat?", "Sogokuru yarya iki?"])
+def test_questions_about_adults_only_are_declined_here_without_the_space(api, question):
+    space = FakeSpace(error=AssertionError("an off-scope question must not use the Space's GPU"))
+    reply = client_with(space).chat(question)
+    assert space.calls == []
+    expected = api.post("/chat", json={"question": question}).json()
+    assert (reply["answer"], reply["source"]) == (expected["answer"], expected["source"])
+    assert reply["source"] == "out_of_scope"
+
+
 def test_errors_from_the_space_become_api_errors():
     with pytest.raises(ApiError) as error:
         client_with(FakeSpace({"error": "Please type a question.", "status": 422})).chat("")

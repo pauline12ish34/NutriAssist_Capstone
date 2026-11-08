@@ -30,6 +30,7 @@ from nutriassist import __version__
 from nutriassist.assistant import InvalidQuestion, NutritionAssistant
 from nutriassist.inference.scripted import ScriptedChatModel
 from nutriassist.planner import FoodCatalogue, MealPlanner, PlanRequest
+from nutriassist.safety.subject import is_about_adult_only
 from nutriassist.screening import ScreeningInputError, ScreeningRequest, screen
 
 # Space states in which the Space cannot answer. A sleeping Space wakes up on the first question.
@@ -112,7 +113,9 @@ class SpaceClient:
 
     def chat(self, question: str) -> dict:
         triage = _triage()
-        if triage.detector.assess(question or "").is_urgent:   # danger sign: answered here, never queued
+        # Danger signs and questions about adults only (a grandmother, a husband) are answered here by the same
+        # rules: an urgent message never waits in the Space's queue, and no GPU time goes to off-scope questions.
+        if triage.detector.assess(question or "").is_urgent or is_about_adult_only(question or ""):
             try:
                 return _reply_dict(triage.ask(question))
             except InvalidQuestion:
