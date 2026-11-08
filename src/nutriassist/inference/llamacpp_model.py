@@ -7,6 +7,7 @@ model as ``nutriassist-rw-q4_k_m.gguf`` and ``nutriassist-rw-q8_0.gguf``; the ch
 from __future__ import annotations
 
 import os
+import threading
 from pathlib import Path
 from typing import Sequence
 
@@ -15,12 +16,18 @@ from .base import ChatModel, GenerationSettings
 
 
 class LlamaCppChatModel(ChatModel):
-    """Greedy generation with llama.cpp. Conversations are answered one after another."""
+    """Greedy generation with llama.cpp. Conversations are answered one after another.
+
+    llama.cpp keeps one context per model, so only one answer can be written at a time. The lock is here,
+    around generation only, so the API can answer safety rules, reviewed answers, growth checks and meal
+    plans while the model is busy (the load test in scripts/load_test/ measured the difference).
+    """
 
     def __init__(self, llama, settings: GenerationSettings | None = None, name: str = "llama.cpp") -> None:
         super().__init__(settings)
         self.llama = llama
         self.name = name
+        self._lock = threading.Lock()
 
     @classmethod
     def from_file(cls, path: str | Path, context_tokens: int = 2048, threads: int | None = None,
@@ -35,16 +42,17 @@ class LlamaCppChatModel(ChatModel):
         return cls(llama, settings, name=path.name)
 
     def generate_batch(self, conversations: Sequence[Sequence[Message]]) -> list[str]:
-        replies = []
-        for conversation in conversations:
-            # llama.cpp reuses the previous prompt's cache when prompts share a prefix (they all share the
-            # system prompt), which makes the answer depend on the previous question. Start clean each time.
-            self.llama.reset()
-            result = self.llama.create_chat_completion(
-                messages=list(conversation),
-                max_tokens=self.settings.max_new_tokens,
-                temperature=0.0,                    # greedy, as in evaluation
-                repeat_penalty=self.settings.repetition_penalty,
-            )
-            replies.append(result["choices"][0]["message"]["content"].strip())
-        return replies
+        with self._lock:
+            return [self._generate(conversation) for conversation in conversations]
+
+    def _generate(self, conversation: Sequence[Message]) -> str:
+        # llama.cpp reuses the previous prompt's cache when prompts share a prefix (they all share the
+        # system prompt), which makes the answer depend on the previous question. Start clean each time.
+        self.llama.reset()
+        result = self.llama.create_chat_completion(
+            messages=list(conversation),
+            max_tokens=self.settings.max_new_tokens,
+            temperature=0.0,                    # greedy, as in evaluation
+            repeat_penalty=self.settings.repetition_penalty,
+        )
+        return result["choices"][0]["message"]["content"].strip()

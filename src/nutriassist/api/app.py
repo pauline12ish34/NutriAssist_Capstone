@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -48,8 +47,8 @@ class Services:
         self.demo_mode = demo_mode
         self.catalogue = catalogue
         self.planner = MealPlanner(catalogue)
-        # llama.cpp keeps one context per model, so generate one answer at a time.
-        self.model_lock = threading.Lock()
+        # No lock here: the model locks only its own generation (LlamaCppChatModel), so safety rules, reviewed
+        # answers, growth checks and meal plans never wait behind another person's model answer.
 
     def record_unanswered(self, question: str, reply: AssistantReply) -> None:
         """Keep questions with no reviewed answer, so reviewers can write answers for the common ones.
@@ -131,8 +130,7 @@ def create_app(settings: Settings | None = None, model: ChatModel | None = None,
     def chat(body: ChatRequest, request: Request) -> ChatResponse:
         s = services(request)
         try:
-            with s.model_lock:
-                reply = s.assistant.ask(body.question)
+            reply = s.assistant.ask(body.question)
             s.record_unanswered(body.question, reply)
         except InvalidQuestion as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
