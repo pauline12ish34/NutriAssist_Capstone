@@ -179,6 +179,9 @@ class NutritionAssistant:
         """
         if lang != KINYARWANDA or self.translator is None:
             answer = self._model_answer(question, lang)
+            if not answer:   # the model gave nothing: a blank reply under the AI label is worse than declining
+                log.info("Empty model answer, declined as out of scope: %r", question)
+                return ReplySource.OUT_OF_SCOPE
             return answer if self._on_topic(question, answer) else ReplySource.OFF_TOPIC
         try:
             return self._translated_answer(question)
@@ -244,6 +247,9 @@ class NutritionAssistant:
             return ReplySource.OUT_OF_SCOPE
         english_answer = self._model_answer(english_question, ENGLISH)
         answered = time.perf_counter()
+        if not english_answer:   # nothing to translate: decline instead of showing a blank answer
+            log.info("Empty model answer, declined as out of scope: %r", english_question)
+            return ReplySource.OUT_OF_SCOPE
         # Checked in English, which LaBSE knows best, and before translating back: no Gemini call is wasted.
         if not self._on_topic(english_question, english_answer):
             return ReplySource.OFF_TOPIC

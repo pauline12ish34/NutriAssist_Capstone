@@ -151,3 +151,18 @@ def test_on_topic_answers_pass_unchanged():
     reply = NutritionAssistant(ScriptedChatModel(lambda q: "Give beans and dark green leaves."),
                                checker=FakeChecker()).ask("What foods help my child have enough blood?")
     assert reply.source is ReplySource.MODEL and reply.answer == "Give beans and dark green leaves."
+
+
+@pytest.mark.parametrize("output", ["", "   ", "感冒"])
+def test_an_empty_model_answer_is_declined_as_out_of_scope(output):
+    """On the live Space (checks off) an empty generation was shown as a blank answer under the AI label."""
+    reply = NutritionAssistant(ScriptedChatModel(lambda q: output)).ask("What foods are good for my baby?")
+    assert reply.source is ReplySource.OUT_OF_SCOPE and reply.answer == messages.OUT_OF_SCOPE["en"]
+
+
+def test_an_empty_model_answer_in_kinyarwanda_is_declined_before_translating_back():
+    translator = FakeTranslator()
+    reply = NutritionAssistant(ScriptedChatModel(lambda q: ""), translator=translator).ask(
+        "Ni ibihe biryo nagaburira umwana wanjye w'amezi 8?")
+    assert reply.source is ReplySource.OUT_OF_SCOPE and reply.answer == messages.OUT_OF_SCOPE["rw"]
+    assert translator.calls == [("rw", "en")]

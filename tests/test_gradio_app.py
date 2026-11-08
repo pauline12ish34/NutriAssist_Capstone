@@ -120,8 +120,16 @@ def test_load_model_merges_the_adapter_and_answers(tmp_path, monkeypatch):
 
     assert isinstance(model, gradio_app.ZeroGPUChatModel)
     assert not isinstance(gradio_app._GPU_MODEL.model, peft.PeftModel)   # merged into the base weights
-    reply = gradio_app.Services.create(model).assistant.ask("What can a 9-month-old eat for supper?")
-    assert reply.source.value == "model" and reply.model_name.endswith("someone/adapter-repo")
+    question = "What can a 9-month-old eat for supper?"
+    assistant = gradio_app.Services.create(model).assistant
+    reply = assistant.ask(question)
+    # The random model's few tokens may be blank once foreign script is stripped; a blank answer is declined.
+    from nutriassist.translation import strip_foreign_script
+    raw = strip_foreign_script(model.generate(assistant._messages(question, "en"))).strip()
+    if raw:
+        assert reply.source.value == "model" and reply.model_name.endswith("someone/adapter-repo")
+    else:
+        assert reply.source.value == "out_of_scope"
 
 
 def test_page_builds_with_every_example_question(services):
