@@ -43,7 +43,7 @@ from .safety import messages
 from .safety.detector import DangerSignDetector, SafetyAssessment
 from .safety.referral import ReferralDetector
 from .safety.relevance import RelevanceChecker
-from .safety.subject import is_about_adult_only
+from .safety.subject import outside_target_group
 from .safety.rules import SafetyLevel
 from .safety.topics import TopicRules
 from .translation import Translator, strip_foreign_script, translate_text
@@ -133,7 +133,7 @@ class NutritionAssistant:
             urgent_signs = [s.label_rw if lang == "rw" else s.label_en for s in safety.signs if s.level is SafetyLevel.URGENT]
             answer = messages.URGENT[lang].format(signs=messages.join_signs(urgent_signs, lang))
             source = ReplySource.SAFETY_RULE
-        elif is_about_adult_only(question):   # a grandmother, a husband: not the app's topic (no model needed)
+        elif outside_target_group(question):   # an adult or a child over 5: not the app's topic (no model needed)
             answer, source = messages.OUT_OF_SCOPE[lang], ReplySource.OUT_OF_SCOPE
         elif (rule := self.topics.for_question(question)) is not None:
             answer, source = rule.message[lang], ReplySource.SAFETY_RULE
