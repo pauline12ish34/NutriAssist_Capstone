@@ -5,7 +5,7 @@ import pytest
 from nutriassist.assistant import NutritionAssistant, ReplySource
 from nutriassist.inference.scripted import ScriptedChatModel
 from nutriassist.safety import messages
-from nutriassist.safety.subject import is_about_adult_only
+from nutriassist.safety.subject import outside_target_group
 
 ADULT_ONLY = [
     "What should my grandma eat?",
@@ -18,6 +18,17 @@ ADULT_ONLY = [
     "Ni ibihe biryo byiza kuri nyogokuru?",
     "Sogokuru yarya iki?",
     "Umukecuru akwiye kurya iki?",
+    # older children and teenagers, even when called "child"
+    "What food can you give a 15 years old child?",
+    "Food for a 15-year-old child",
+    "My 8 year old son refuses vegetables",
+    "What should my 10yo daughter eat?",
+    "Diet for a child aged 12",
+    "Is milk good for my teenage son?",
+    "What should teenagers eat?",
+    "Food for a 72 month old child",
+    "Umwana w'imyaka 15 yarya iki?",
+    "umwana wimyaka 10 akwiye kurya iki",
 ]
 
 IN_SCOPE = [
@@ -36,17 +47,26 @@ IN_SCOPE = [
     "Umugore wanjye utwite yarya iki?",
     "Ni ibihe biryo byongera amashereka?",
     "Which foods are rich in iron?",
+    "My 3-year-old won't eat, what can I do?",
+    "What should my 5 year old eat?",
+    "Food for a 24 month old",
+    "My 15 month old has no appetite",
+    "My 3-year-old and her 8-year-old brother eat together, what should I cook?",
+    "My 16-year-old daughter is pregnant, what should she eat?",
+    "Umwana w'imyaka 2 yarya iki?",
+    "Umwana w'amezi 15 yarya iki?",
+    "umwana wamezi 10 yanywa icyayi?",
 ]
 
 
 @pytest.mark.parametrize("question", ADULT_ONLY)
 def test_questions_about_adults_only_are_out_of_scope(question):
-    assert is_about_adult_only(question)
+    assert outside_target_group(question)
 
 
 @pytest.mark.parametrize("question", IN_SCOPE)
 def test_children_pregnancy_births_and_breastfeeding_stay_in_scope(question):
-    assert not is_about_adult_only(question)
+    assert not outside_target_group(question)
 
 
 def test_the_model_is_not_called_for_a_question_about_a_grandmother():
