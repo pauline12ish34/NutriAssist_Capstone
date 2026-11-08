@@ -236,14 +236,22 @@ class NutritionAssistant:
                                        system_prompt=self.system_prompt)
 
     def _translated_answer(self, question: str) -> str | ReplySource:
+        # Each step is timed in the log, so a slow Kinyarwanda answer shows where the time went.
+        start = time.perf_counter()
         english_question = translate_text(self.translator, question, KINYARWANDA, ENGLISH)
+        translated_in = time.perf_counter()
         if self.checker is not None and not self._in_scope(english_question):
             return ReplySource.OUT_OF_SCOPE
         english_answer = self._model_answer(english_question, ENGLISH)
+        answered = time.perf_counter()
         # Checked in English, which LaBSE knows best, and before translating back: no Gemini call is wasted.
         if not self._on_topic(english_question, english_answer):
             return ReplySource.OFF_TOPIC
-        return translate_text(self.translator, english_answer, ENGLISH, KINYARWANDA)
+        answer = translate_text(self.translator, english_answer, ENGLISH, KINYARWANDA)
+        log.info("Kinyarwanda answer in %.1f s: question to English %.1f s, model %.1f s, answer to Kinyarwanda "
+                 "%.1f s (%s)", time.perf_counter() - start, translated_in - start, answered - translated_in,
+                 time.perf_counter() - answered, getattr(self.translator, "name", "translator"))
+        return answer
 
     def _answered_by(self, source: ReplySource, translated: bool) -> str:
         if source in (ReplySource.SAFETY_RULE, ReplySource.TOPIC_REPLACED):
