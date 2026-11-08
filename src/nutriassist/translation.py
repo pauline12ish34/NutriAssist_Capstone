@@ -14,6 +14,7 @@ target language (``nutriassist.terms``). A glossary then fixes the mistakes that
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
@@ -23,6 +24,8 @@ from pathlib import Path
 from typing import Protocol, Sequence
 
 from .terms import Terminology
+
+log = logging.getLogger(__name__)
 
 NLLB_MODEL = "facebook/nllb-200-distilled-600M"
 NLLB_CODES = {"en": "eng_Latn", "rw": "kin_Latn"}
@@ -103,6 +106,29 @@ class CachingTranslator:
         return [results[i] for i in range(len(texts))]
 
 
+class FallbackTranslator:
+    """The main translator, and a second one when it fails (Claude down, slow or out of credit: Gemini).
+
+    A failed translation would otherwise leave the caregiver with no answer, only the closest reviewed
+    questions. Both translators get the same prompt and glossary, so the answer differs only in wording.
+    If the backup fails too, its error goes to the caller, which then offers the reviewed questions.
+    """
+
+    def __init__(self, primary: Translator, backup: Translator) -> None:
+        self.primary, self.backup = primary, backup
+        self.name = primary.name
+        self.whole_text = getattr(primary, "whole_text", False)
+        self.fallbacks = 0
+
+    def translate(self, texts: Sequence[str], source: str, target: str) -> list[str]:
+        try:
+            return self.primary.translate(texts, source, target)
+        except Exception:
+            self.fallbacks += 1
+            log.warning("%s failed; translating with %s instead", self.primary.name, self.backup.name, exc_info=True)
+            return self.backup.translate(texts, source, target)
+
+
 def split_sentences(text: str) -> list[str]:
     return [sentence for sentence in (s.strip() for s in _SENTENCE_END.split(text)) if sentence]
 
@@ -167,10 +193,11 @@ class NllbTranslator:
 
 
 GEMINI_MODEL = "gemini-3.5-flash"
-GEMINI_TIMEOUT_MS = 20_000
+# A caregiver is waiting: give up on a slow request instead of waiting 20 s (most answer in 2-4 s).
+GEMINI_TIMEOUT_MS = 15_000
 # Tried in turn when the main model is busy. gemini-3.1-flash-lite was left out: it invented words.
 GEMINI_FALLBACK_MODELS = ("gemini-3.6-flash", "gemini-3.5-flash-lite")
-GEMINI_RETRIES = 4
+GEMINI_RETRIES = 2     # main model, then the next one; flash-lite (third) wrote poor Kinyarwanda
 LANGUAGE_NAMES = {"en": "English", "rw": "Kinyarwanda"}
 
 
@@ -247,7 +274,10 @@ class GeminiTranslator:
 
 
 CLAUDE_MODEL = "claude-sonnet-5-5"
-CLAUDE_TIMEOUT_S = 30.0
+# Sonnet translates an answer in about 7 s and a question in about 2.5 s (2026-11-08). A request that takes
+# more than 15 s is stuck; with one retry a caregiver waits at most about 30 s before the fallback (Gemini).
+CLAUDE_TIMEOUT_S = 15.0
+CLAUDE_RETRIES = 1
 CLAUDE_MAX_TOKENS = 4096   # a long Kinyarwanda answer is under 1,500 tokens; the rest leaves room for thinking
 # On a refusal the API re-runs the request on a suitable other Claude model in the same call.
 CLAUDE_FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -295,7 +325,7 @@ class ClaudeTranslator:
 
         # The SDK retries rate limits (429), busy servers (5xx) and dropped connections itself.
         self.client = anthropic.Anthropic(api_key=api_key or anthropic_api_key(), timeout=CLAUDE_TIMEOUT_S,
-                                          max_retries=3)
+                                          max_retries=CLAUDE_RETRIES)
         self.model = model
         self.glossary = _glossary()
         self.name = model

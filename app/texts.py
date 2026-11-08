@@ -76,6 +76,9 @@ TEXT: dict[str, dict[str, str]] = {
     "chat_placeholder": {"en": "Type your question...", "rw": "Andika ikibazo cyawe..."},
     "examples": {"en": "Try an example", "rw": "Gerageza urugero"},
     "thinking": {"en": "Thinking...", "rw": "Ndatekereza..."},
+    # NEEDS REVIEW: Kinyarwanda drafted by Claude, not yet checked by a native speaker.
+    "thinking_translated": {"en": "Finding the answer and translating it into Kinyarwanda. This can take about 15 seconds...",
+                            "rw": "Ndimo gushaka igisubizo no kugihindura mu Kinyarwanda. Bishobora gufata amasegonda 15..."},
     "clear_chat": {"en": "Clear conversation", "rw": "Siba ibiganiro"},
     "urgent_banner": {"en": "Danger sign detected", "rw": "Habonetse ikimenyetso cy'akaga"},
     "medical_banner": {"en": "This needs a health worker", "rw": "Ibi bikeneye umukozi w'ubuzima"},

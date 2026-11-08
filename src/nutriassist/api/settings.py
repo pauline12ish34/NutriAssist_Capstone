@@ -165,7 +165,7 @@ def build_translator(settings: Settings) -> Translator | None:
     if settings.translator not in TRANSLATORS:
         raise ValueError(f"NUTRIASSIST_TRANSLATOR must be one of {', '.join(TRANSLATORS)}, not {settings.translator!r}")
     try:
-        from ..translation import CachingTranslator   # repeated questions reuse earlier translations
+        from ..translation import CachingTranslator, FallbackTranslator   # cache: repeats reuse translations
 
         if settings.translator == "gemini":
             from ..translation import GeminiTranslator
@@ -174,12 +174,25 @@ def build_translator(settings: Settings) -> Translator | None:
         if settings.translator == "claude":
             from ..translation import ClaudeTranslator
 
-            return CachingTranslator(ClaudeTranslator(model=settings.claude_model))
+            claude = ClaudeTranslator(model=settings.claude_model)
+            backup = _gemini_backup()
+            return CachingTranslator(claude if backup is None else FallbackTranslator(claude, backup))
         from ..translation import NllbTranslator, TermAwareTranslator
 
         return CachingTranslator(TermAwareTranslator(NllbTranslator()))
     except (ImportError, RuntimeError) as error:   # RuntimeError: no Gemini or Anthropic API key
         log.warning("No %s translator (%s): Kinyarwanda questions get reviewed answers only", settings.translator, error)
+        return None
+
+
+def _gemini_backup() -> Translator | None:
+    """Gemini, when its key is set, to translate when Claude fails; else ``None`` (no backup)."""
+    try:
+        from ..translation import GeminiTranslator
+
+        return GeminiTranslator()
+    except (ImportError, RuntimeError) as error:
+        log.info("No Gemini backup for Claude translation (%s)", error)
         return None
 
 

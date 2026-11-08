@@ -4,6 +4,7 @@ import streamlit as st
 
 from api_client import ApiError, make_client
 from i18n import language, t
+from nutriassist.language import LanguageDetector
 from texts import EXAMPLES
 
 client = make_client()
@@ -57,7 +58,10 @@ if question:
     st.session_state.messages.append(user_message)
     show_message(user_message)
     try:
-        with st.spinner(t("thinking")):
+        # A Kinyarwanda question with no reviewed answer is translated twice around the model (about 15 s),
+        # so say so: a caregiver who sees only "Thinking..." for 15 s may think the app has frozen.
+        waiting = "thinking_translated" if LanguageDetector().detect(question).language == "rw" else "thinking"
+        with st.spinner(t(waiting)):
             reply = client.chat(question)
     except ApiError as error:
         st.error(error.message)
