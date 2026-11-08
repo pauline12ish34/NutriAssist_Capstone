@@ -5,5 +5,5 @@ import streamlit as st
 from i18n import language, t
 from texts import ABOUT
 
-st.title(f"ℹ️ {t('page_about')}")
+st.title(t("page_about"))
 st.markdown(ABOUT[language()])
