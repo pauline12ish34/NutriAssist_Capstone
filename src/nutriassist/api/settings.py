@@ -71,7 +71,7 @@ class Settings:
             match_threshold=float(env("NUTRIASSIST_MATCH_THRESHOLD", cls.match_threshold)),
             embeddings=env("NUTRIASSIST_EMBEDDINGS", "off").lower() in {"on", "1", "true", "yes"},
             kinyarwanda=env("NUTRIASSIST_KINYARWANDA", cls.kinyarwanda).lower(),
-            translator=env("NUTRIASSIST_TRANSLATOR", cls.translator).lower(),
+            translator=env("NUTRIASSIST_TRANSLATOR", cls.translator).strip().lower(),
             claude_model=env("NUTRIASSIST_CLAUDE_MODEL", cls.claude_model),
             grounding=int(env("NUTRIASSIST_GROUNDING", cls.grounding)),
             checks=env("NUTRIASSIST_CHECKS", "on").lower() in {"on", "1", "true", "yes"},

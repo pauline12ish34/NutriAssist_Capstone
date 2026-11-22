@@ -70,6 +70,12 @@ TEA = TopicRule(
         "Nshobora guha icyayi umwana wanjye muto?", "Umwana w'amezi 10 yanywa icyayi?",
         "Ese icyayi ni kibi ku bana?", "Uruhinja rwanywa icyayi?",   # NEEDS REVIEW: drafted by Claude
     ),
+    # An answer that already warns about tea (an iron answer: "avoid tea with meals, it blocks iron") keeps its
+    # advice; "Yes, tea is fine" is still replaced.
+    answer_ok=re.compile(
+        r"\b(?:avoid|no|not|never|don't|without)\b[^.]{0,40}\b(?:tea|coffee)\b"
+        r"|\b(?:tea|coffee)\b[^.]{0,80}\b(?:iron|between meals|anaemia|anemia)\b"
+        r"|icyayi[^.]{0,80}(?:ubutare|hagati y'amafunguro)", re.IGNORECASE),
 )
 
 RULES = (HONEY, TEA)

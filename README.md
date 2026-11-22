@@ -161,7 +161,7 @@ Streamlit Cloud deployment steps are in the [deployment guide](docs/deployment.m
 pytest
 ```
 
-505 automated tests (8 November 2026) cover the safety rules, scope checks, answer matching, meal planner,
+516 automated tests (8 November 2026) cover the safety rules, scope checks, consent, answer matching, meal planner,
 growth check, API errors, dataset validation and the Streamlit pages. GitHub Actions runs them on every push
 on Ubuntu, Windows and macOS (Python 3.12, plus 3.10 on Ubuntu); a passing run on `main` restarts the Hugging Face Space.
 Testing strategies and results are in the technical report.
@@ -200,6 +200,42 @@ Testing strategies and results are in the technical report.
 - [Performance and compatibility](docs/performance.md)
 - [Data inspection](docs/data_inspection.md), [nutrient cleaning](docs/nutrient_cleaning.md) and [QA dataset](docs/qa_dataset.md)
 - [Deployment guide](docs/deployment.md)
+
+## Credits and licences
+
+The code in this repository is mine and is released under the [MIT licence](LICENSE). Everything below
+was made by others and keeps its own licence or terms.
+
+**Models**
+
+| Resource | Use | Licence or terms |
+|---|---|---|
+| [Gemma 3 4B-it](https://huggingface.co/google/gemma-3-4b-it) (Google) | Live model, fine-tuned with LoRA | [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and Prohibited Use Policy. My adapter on the Hugging Face Hub follows the same terms. |
+| [Qwen2.5-1.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) (Alibaba) | Local model and experiments | Apache 2.0 |
+| [LaBSE](https://huggingface.co/sentence-transformers/LaBSE) (Google) | Scope check | Apache 2.0 |
+| [NLLB-200 distilled 600M](https://huggingface.co/facebook/nllb-200-distilled-600M) (Meta) | Translation evaluation only, not in the app | CC BY-NC 4.0 (non-commercial) |
+
+**Data**
+
+| Resource | Use | Licence or terms |
+|---|---|---|
+| Food composition workbook, given to me by Dr Leah Mfiteyesu (nutritionist, [Nutri Medi Plus](https://www.instagram.com/nutrimediplus/), Kimironko) | Meal planner, after the corrections in [docs/nutrient_cleaning.md](docs/nutrient_cleaning.md) | Shared by the nutritionist for this project |
+| [WHO Child Growth Standards](https://www.who.int/tools/child-growth-standards) (WHO, 2006) | Growth check z-scores | © WHO; non-commercial use with credit ([WHO copyright](https://www.who.int/about/policies/publishing/copyright)). WHO does not endorse this app. |
+| WHO IMCI general danger signs | Basis of the safety rules | © WHO, as above |
+| [Rwanda DHS 2025 key indicators](https://dhsprogram.com/pubs/pdf/PR164/PR164.pdf) (NISR, Ministry of Health and ICF) | National figures for context | Cited, not redistributed beyond one summary table |
+| [CircuitNotion/kinyarwanda_corpus](https://huggingface.co/datasets/CircuitNotion/kinyarwanda_corpus) | Continued pre-training | MIT |
+| The 135 original question-answer pairs | Starting point of the QA dataset | My own, drafted with ChatGPT for an earlier ALU course (Machine Learning Techniques 1). Each pair was reviewed again for this project (kept, edited, redirected or dropped, see [docs/qa_dataset.md](docs/qa_dataset.md)). |
+
+**Services:** Streamlit Community Cloud and Hugging Face Spaces (hosting), Anthropic Claude API and Google
+Gemini API (translation of some Kinyarwanda questions), each under its provider's terms.
+
+**Code libraries:** Streamlit, Gradio, transformers, PEFT, Accelerate, Datasets, huggingface_hub,
+sentence-transformers, Requests, google-genai, SacreBLEU, rouge-score and SentencePiece (Apache 2.0);
+FastAPI, Pydantic, openpyxl, bitsandbytes, llama-cpp-python and anthropic (MIT); pandas, NumPy,
+scikit-learn, PyTorch, Uvicorn and seaborn (BSD 3-Clause); Matplotlib (Matplotlib licence).
+
+**AI assistance:** Claude (Anthropic) helped with parts of the code, the documentation and the first drafts
+of the Kinyarwanda answers, which I reviewed as a native speaker. ChatGPT drafted the 135 original pairs.
 
 ## Author
 
