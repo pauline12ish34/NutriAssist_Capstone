@@ -252,7 +252,8 @@ monitoring or the child's health booklet). Tick the box if both feet are swollen
 ### Where the information comes from
 - Answers: a language model fine-tuned on 513 question-answer pairs on child and maternal nutrition,
   checked for safety and reviewed in Kinyarwanda by a native speaker.
-- Kinyarwanda questions with no reviewed answer are translated by a computer (Google Gemini). Those answers
+- Kinyarwanda questions with no reviewed answer are translated by a computer (Anthropic Claude, or Google Gemini
+  if Claude is not available). Those answers
   are labelled as machine-translated and may contain mistakes.
 - Meal plans: a food composition workbook from a nutritionist in Kigali, with 5 sheets of foods: **2,395 foods**,
   each with 33 nutrients. The planner uses **33 common Rwandan foods** from it, with values checked against
@@ -295,7 +296,8 @@ bibyimbye. Kanda *Suzuma imikurire*:
 ### Amakuru akomoka he
 - Ibisubizo: porogaramu y'ururimi yatojwe ku bibazo n'ibisubizo 513 ku mirire y'abana n'ababyeyi,
   byagenzuwe ku mutekano kandi Ikinyarwanda cyasuzumwe n'ukivuga kavukire.
-- Ibibazo by'Ikinyarwanda bidafite igisubizo cyasuzumwe bihindurwa na mudasobwa (Google Gemini). Ibyo bisubizo
+- Ibibazo by'Ikinyarwanda bidafite igisubizo cyasuzumwe bihindurwa na mudasobwa (Anthropic Claude, cyangwa
+  Google Gemini iyo Claude idakora). Ibyo bisubizo
   biranditseho ko byahinduwe na mudasobwa kandi bishobora kugira amakosa.
 - Gahunda y'amafunguro: imbonerahamwe y'ibiribwa yatanzwe n'inzobere mu mirire i Kigali, ifite impapuro 5:
   **ibiribwa 2.395**, buri kimwe gifite intungamubiri 33. Gahunda ikoresha **ibiribwa 33 bisanzwe mu Rwanda**
@@ -307,7 +309,7 @@ bibyimbye. Kanda *Suzuma imikurire*:
 # Privacy policy and terms of use (page "Privacy and terms", app/views/privacy.py). Every promise here is
 # kept by the code named in ethics/privacy_policy.md; change both together.
 # NEEDS REVIEW: the Kinyarwanda version was drafted by Claude and not yet checked by a native speaker.
-PRIVACY_VERSION = "8 November 2026"
+PRIVACY_VERSION = "15 November 2026"
 
 PRIVACY = {
     "en": f"""
@@ -331,11 +333,11 @@ photos. Please do not type them in the chat.
 
 **2. Who else handles the data**
 
-To work, the app uses three online services. They are outside Rwanda:
+To work, the app uses four online services. They are outside Rwanda:
 - **Streamlit Community Cloud** runs this website.
 - **Hugging Face** runs the AI model that writes answers.
-- **Google Gemini** translates a Kinyarwanda question that has no checked answer into English and back.
-  Only the question and the answer text are sent.
+- **Anthropic Claude** translates a Kinyarwanda question that has no checked answer into English and back.
+  If Claude is not available, **Google Gemini** does it instead. Only the question and the answer text are sent.
 
 No data is sold or shared for advertising.
 
@@ -399,11 +401,12 @@ cyangwa aho uherereye (GPS), cyangwa amafoto. Ntubyandike mu biganiro.
 
 **2. Abandi bakoresha amakuru**
 
-Porogaramu ikoresha serivisi eshatu zo kuri interineti ziri hanze y'u Rwanda:
+Porogaramu ikoresha serivisi enye zo kuri interineti ziri hanze y'u Rwanda:
 - **Streamlit Community Cloud** ikoresha uru rubuga.
 - **Hugging Face** ikoresha porogaramu ya AI yandika ibisubizo.
-- **Google Gemini** ihindura mu Cyongereza ikibazo cy'Ikinyarwanda kidafite igisubizo cyagenzuwe,
-  hanyuma igasubiza mu Kinyarwanda. Hoherezwa gusa inyandiko y'ikibazo n'igisubizo.
+- **Anthropic Claude** ihindura mu Cyongereza ikibazo cy'Ikinyarwanda kidafite igisubizo cyagenzuwe,
+  hanyuma igasubiza mu Kinyarwanda. Iyo Claude idakora, **Google Gemini** ni yo ibikora. Hoherezwa gusa
+  inyandiko y'ikibazo n'igisubizo.
 
 Nta makuru agurishwa cyangwa atangwa ku bw'amatangazo.
 

@@ -49,6 +49,10 @@ RULES: tuple[DangerRule, ...] = (
         r"\bunconscious", r"not (?:waking|responding|responsive)", r"(?:won't|will not|cannot|can't) wake",
         r"passed out", r"\bfaint(?:ed|ing|s)?\b", r"\blethargic", r"\bfloppy\b",
         r"yataye ubwenge", r"\bata ubwenge", r"\bntiyumva\b", r"ntakanguka", r"yaguye igihumure",
+        # "Very weak" is how parents describe a lethargic child (IMCI). The child must be the subject.
+        r"(?:child|baby|infant|toddler|son|daughter|\bhe|\bshe)(?:(?!\bi\b|\bmother|\bmom|\bmum|\bwife)[^.?!]){0,40}"
+        r"(?:very|extremely|so|too) weak",
+        r"yacitse intege", r"intege nke cyane", r"nta ntege",   # NEEDS REVIEW: drafted by Claude
     ),)),
     DangerRule("very_sleepy", URGENT, "very sleepy or hard to wake", "gusinzira cyane cyangwa kudakanguka", (_any(
         # "Sleepy after feeds" is normal, so it is not a danger sign.
@@ -68,6 +72,9 @@ RULES: tuple[DangerRule, ...] = (
         r"(?:cannot|can't|unable to|not able to|won't|will not|refuses to|stopped|doesn't want to|does not want to) "
         r"(?:drink|breastfeed|breast feed|suck|nurse)",
         r"not (?:drinking|breastfeeding|sucking) (?:at all|anything)",
+        # "my baby has diarrhoea and is not drinking"
+        r"(?:child|baby|infant|toddler|son|daughter|\bhe|\bshe)(?:(?!\bi\b|\bmother|\bmom|\bmum|\bwife)[^.?!]){0,60}"
+        r"\b(?:isn't|is not|not) (?:drinking|breastfeeding|sucking|nursing)\b",
         r"ntashobora (?:konka|kunywa)", r"\bntiyonka\b", r"yanze konka", r"\bntakonka\b", r"\bntanywa\b",
     ),)),
     DangerRule("breathing", URGENT, "fast or difficult breathing", "guhumeka vuba cyangwa bigoranye", (_any(

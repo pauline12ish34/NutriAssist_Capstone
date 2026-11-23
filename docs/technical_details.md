@@ -159,7 +159,7 @@ classified correctly ([details](screening.md)).
 
 ## Testing
 
-505 automated tests (`pytest`) run on every push in GitHub Actions on Ubuntu, Windows and macOS with
+516 automated tests (`pytest`) run on every push in GitHub Actions on Ubuntu, Windows and macOS with
 Python 3.12, and on Ubuntu with Python 3.10.
 
 | Strategy | What is tested | Where |
@@ -204,7 +204,7 @@ Improvements made after testing:
 │   └── language.py, prompts.py  language detector; system prompt shared by training and the app
 ├── notebooks/                   Colab training and evaluation notebook
 ├── data/                        raw and cleaned food tables, QA data, reference data
-├── tests/                       505 tests (unit, data validation, integration, end-to-end)
+├── tests/                       516 tests (unit, data validation, integration, end-to-end)
 ├── docs/                        documentation, results, screenshots
 ├── deploy/hf-zerogpu/           Hugging Face ZeroGPU Space files
 ├── scripts/                     local launcher, benchmark, load tests, calibration

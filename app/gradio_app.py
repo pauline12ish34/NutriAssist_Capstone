@@ -154,7 +154,9 @@ class Services:
         # Space variables: NUTRIASSIST_KINYARWANDA (translate / model / reviewed) and NUTRIASSIST_GROUNDING (RAG).
         settings = Settings(kinyarwanda=env("NUTRIASSIST_KINYARWANDA", Settings.kinyarwanda).lower(),
                             grounding=int(env("NUTRIASSIST_GROUNDING", Settings.grounding)),
-                            checks=env("NUTRIASSIST_CHECKS", "on").lower() in {"on", "1", "true", "yes"})
+                            checks=env("NUTRIASSIST_CHECKS", "on").strip().lower() in {"on", "1", "true", "yes"},
+                            # gemini (default), claude or nllb; spaces typed around the value are ignored
+                            translator=env("NUTRIASSIST_TRANSLATOR", Settings.translator).strip().lower())
         knowledge = build_knowledge_base(settings)
         # Gemini translation needs the Space secret GEMINI_API_KEY (Claude, with NUTRIASSIST_TRANSLATOR=claude:
         # ANTHROPIC_API_KEY); without a key Kinyarwanda gets reviewed answers only.

@@ -45,3 +45,33 @@ ethics/
 # RDHS 2025 nutrition table downloaded from the NISR data portal (kept locally)
 # data/Nutritional_Status_of_Children__2025_/
 
+
+# Pilot photos: children and the CHW can be identified, never push them (the report uses a blurred collage)
+pilotphotos/
+# Real pilot measurements (anonymised, but still child data): keep local
+data/pilot/chw_measurements.csv
+
+# Filled SUS forms from the CHWs (participants' own answers): keep local, the scores are in the report
+data/pilot/SUS_Kamonyi_page*.png
+data/pilot/SUS_Karongi_page*.png
+data/pilot/SUS-Kamonyi.pdf
+data/pilot/karongiSUS.pdf
+
+# Office lock files (Word, PowerPoint, Excel)
+~$*
+
+# Report and defence working files: only the final PDF report and the final slides are pushed
+docs/report/*.docx
+docs/report/*backup*
+docs/report/Copy of *
+docs/report/Mission Capstone Defense Template.pptx
+docs/report/NutriAssist-RW_Defense.pptx
+docs/report/NutriAssist-RW_Defense_v[1-5].pptx
+docs/report/defence_study_guide.*
+
+# Scripts that drew the report and slide figures (the figures themselves are pushed)
+docs/figures/make_*.py
+docs/report/*.pptx
+
+# Report, slides and defence files: kept local
+docs/report/
